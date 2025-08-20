@@ -1,0 +1,17 @@
+###########################################
+# Files and folders to ignore in this repo #
+###########################################
+# Folders 
+data/
+docs/
+work/
+results/
+
+# Development
+.nextflow*
+*.log
+.vscode/
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
