@@ -8,11 +8,25 @@ process cleanFormatSmallVar {
         tuple path(smallvar_annot_file), val(gene_name)
 
     output:
-        tuple path("${gene_name}_small_variants.tsv"), val(gene_name)
+        path("${gene_name}_small_variants.tsv"), emit: clean_tsv
+        tuple path("${gene_name}_small_variants.rds"), val(gene_name), emit: clean_rds
 
     script:
     """
     echo "Processing gene: ${gene_name} with annotation file: ${smallvar_annot_file}"
     CleanFormatSmallVar.R ${smallvar_annot_file} ${gene_name}
+
+    # Check output files created
+    if [ ! -f "${gene_name}_small_variants.tsv" ]; then
+        echo "Error: TSV output file was not created"
+        exit 1
+    fi
+    
+    if [ ! -f "${gene_name}_small_variants.rds" ]; then
+        echo "Error: RDS output file was not created"
+        exit 1
+    fi
+    
+    echo "Both TSV and RDS files created successfully"
     """
 }

@@ -15,3 +15,4 @@ results/
 .Rhistory
 .RData
 .Ruserdata
+.lintr

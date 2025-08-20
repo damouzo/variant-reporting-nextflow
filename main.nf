@@ -2,6 +2,24 @@
 
 nextflow.enable.dsl = 2
 
+log.info """
+===========================================
+${params.project_code} : ${params.project_name}
+===========================================
+Environment     : ${params.environment_type}
+Genome Assembly : ${params.genome_assembly}
+===========================================
+Gene List File  : ${params.gene_list}
+Data Root       : ${params.data_root}
+Output Root     : ${params.output_root}
+Results Dir     : ${params.results_dir}
+Work Dir        : ${workDir}
+===========================================
+R Library Path  : ${params.r_lib_path ?: 'System default'}
+LabKey Main     : ${params.labkey_main}
+===========================================
+"""
+
 include { QC_SMALL_VARIANTS  } from './subworkflows/local/qc_small_variants/qc_small_variants.nf'
 include { QC_STRUCT_VARIANTS } from './subworkflows/local/qc_struct_variants/qc_struct_variants.nf'
 

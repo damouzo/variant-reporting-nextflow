@@ -19,10 +19,12 @@ workflow QC_SMALL_VARIANTS {
         .map { file, gene -> tuple(file, gene) }
     
     // RUN cleanFormatSmallVar
-    cleanFormatSmallVar(clean_input_ch)  // cleanSmallVar_ch output: tuple(path(clean_table), val(gene_name))
+    cleanFormatSmallVar(clean_input_ch)  
+            // out.clean_tsv: path(tsv_file) 
+            // out.clean_rds: tuple(path(rds_file), val(gene_name))
 
     // Prepare input for protein and exon files
-    plot_input_ch = cleanFormatSmallVar.out
+    plot_input_ch = cleanFormatSmallVar.out.clean_rds
         .combine(prot_files_ch)
         .filter { clean_table, gene_name, gff_file -> gff_file.name.contains(gene_name) }
         .combine(exon_files_ch)
@@ -33,6 +35,7 @@ workflow QC_SMALL_VARIANTS {
     plotQCsmallVar(plot_input_ch)
 
     emit:
-    clean_tables = cleanFormatSmallVar.out
+    clean_tsv   = cleanFormatSmallVar.out.clean_tsv  // File TSV
+    clean_rds   = cleanFormatSmallVar.out.clean_rds  // tuple(path(rds_file), val(gene_name))
     plots       = plotQCsmallVar.out
 }
