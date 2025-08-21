@@ -11,7 +11,7 @@ process plotQCsmallVar {
 
     // Save all PDFs generated
     output:
-    path "plots/small_variants/*.pdf"
+    path "*.pdf"
 
     script:
     """

@@ -60,7 +60,6 @@ protein_info <- rtracklayer::import(prot_file)
 exon_info <- read_tsv(exon_file)
 
 
-
 # Visual Plots -----------------------------------------------------------------
 ## Distribution of MAF_variants ------
 pdf(paste0(gene_name, "_MAF_Distribution.pdf"))
@@ -99,11 +98,25 @@ print(ggplot(variants_table, aes(x = IMPACT_annotation)) +
 dev.off()
 
 ## Density Variants -------
-densities <- variants_table %>% 
-  group_by(IMPACT_annotation) %>%
-  group_map(~ density(.x$POS_variant)$y)
+# Add a check to ensure there are at least two points in each group before calculating density
+valid_groups <- variants_table %>% 
+  group_by(IMPACT_annotation) %>% 
+  filter(n() > 1)  # Filter groups with more than one point
 
-max_density <- max(unlist(densities))
+if (nrow(valid_groups) > 0) {
+  densities <- valid_groups %>% 
+    group_by(IMPACT_annotation) %>% 
+    group_map(~ density(.x$POS_variant)$y)
+
+  # Filter out NA values from densities
+  max_density <- max(unlist(densities), na.rm = TRUE)
+  if (is.infinite(max_density)) {
+    max_density <- 0  # Set to 0 if no valid densities are found
+  }
+} else {
+  cat("Warning: Not enough data points for density calculation. Skipping.")
+  max_density <- 0
+}
 
 pdf(paste0(gene_name,"_Density_variants.pdf"), width=14, height=8)
 ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IMPACT_annotation)) +
@@ -123,109 +136,146 @@ ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IM
 dev.off()
 
     
-## Lollipop -------
-# Check if variants have canonical annotation
-if("CANONICAL_annotation" %in% colnames(variants_table)) {
-  for (canonical_var in unique(variants_table$CANONICAL_annotation)) {
-    
-    if (canonical_var == "YES") {canonical_label <- "Canonical"} else {canonical_label <- "Non-canonical"}
+# Lollipop Plot Function -----------------------------------------------------
+# Function to create trackViewer lollipop plot
+create_lollipop2_plot <- function(df_data, gene_name, subset_label, protein_info) {
   
-    df_lollipop <- variants_table %>% 
-      dplyr::filter(!is.na(Protein_pos_start), !is.na(NS_variant), NS_variant>0, 
-                    IMPACT_annotation %in% c("HIGH"),CANONICAL_annotation == canonical_var)
-    
-    top_variants <- df_lollipop %>% group_by(alignment) %>%
-      slice_max(order_by = NS_variant, n = 10, with_ties = F) %>%  ungroup()
-    
-    # Obtain protein annotation files are available
-    protein_domains <- as.data.frame(protein_info) %>%
-      filter(type %in% c("Domain", "Motif", "Region", "Zinc finger")) %>%
-      mutate(type = factor(type, levels = c("Domain", "Region", "Motif")),
-        ymin = case_when(type == "Domain" ~ -5,
-                          type == "Region" ~ -10,
-                          type == "Motif"  ~ -15, TRUE ~ -10),
-        ymax = ymin + 3,
-        ytext = ymin - 2  
-      )
-    
-    
-    pdf(paste0(gene_name,"_", canonical_label,"_Lollipop.pdf"), width=14, height=8)
-    p <- ggplot(df_lollipop, aes(x = Protein_pos_start))
-    
-    # Add domains if available
-    if(nrow(protein_domains) > 0) {
-      p <- p +
-        geom_rect(data = protein_domains,aes(xmin = start, xmax = end, ymin = ymin, ymax = ymax, fill = type),
-                  inherit.aes = FALSE, color = "black", alpha = 0.4) +
-        geom_text(data = protein_domains,aes(x = (start + end)/2, y = ytext, label = Note),
-                  inherit.aes = FALSE, size = 3, angle = 0, hjust = 0.5)
-    }
-    
-    # Add variants
-    p <- p +
-      geom_segment(aes(xend = Protein_pos_start, y = 0, yend = NS_variant),
-                   color = "grey60", size = 0.7) +
-      geom_point(aes(y = NS_variant, color = Consequence_annotation, shape = BIOTYPE_annotation),
-                 size = 5, stroke = 1, fill = "white") +
-      geom_text_repel(data = top_variants,aes(x=Protein_pos_start, y=NS_variant, label = paste0("Max AF ", MAX_AF_annotation)),
-                      size = 3.5, min.segment.length = 0, max.overlaps = Inf, box.padding = 0.4) +
-      scale_color_manual(values = my_pal, name = "Consequence") +
-      scale_shape(name = "Biotype") +
-      facet_wrap(~ alignment, ncol = 1, strip.position = "top") +
-      labs(title = "Lollipop plot over protein",
-           subtitle = paste0(canonical_label, " High IMPACT variants, with prot_pos and NS_variant"),
-           x = "Protein position", y = "Number of samples") +
-      theme_minimal(base_size = 14) +
-      theme(panel.grid.major.y = element_line(color = "grey90"),panel.grid.major.x = element_blank(),
-            axis.text.y = element_text(size = 10),strip.text = element_text(face = "bold", size = 14))
-    
-    print(p)
-    dev.off() 
-    
-    
-    ## Lollipop 2.0 ----------------------------------------------------------------
-    # Only create Lollipop 2.0 if protein annotation is available
-    
-    # Domains
-    feature2plot <- c("Domain", "Motif", "Region", "Zinc finger")
-    features <- protein_info[protein_info$type %in% feature2plot, ]
-          
-    # Prepare colors and labels
-    features$Note <- trimws(features$Note)
-    note_colors <- setNames(my_pal[1:length(unique(features$Note))], unique(features$Note))
-    features$fill <- note_colors[features$Note]
-    names(features) <- features$Note
-      
-    
-    # Variants
-    sample.gr <- GRanges(seqnames = paste0(unique(seqnames(features))), 
-                          ranges = IRanges(start = df_lollipop$Protein_pos_start, width = 1, 
-                                          names = df_lollipop$LabelVarPlot))
-    
-    # Prepare colors and labels
-    sample.gr$score <- df_lollipop$NS_variant
-    
-    sample.gr$Consequence_annotation <- df_lollipop$Consequence_annotation
-    sample.gr$color <- setNames(pastel_colors, unique(sample.gr$Consequence_annotation))[sample.gr$Consequence_annotation]
-    legends <- list(labels=unique(sample.gr$Consequence_annotation), fill=unique(sample.gr$color))
-    
-    sample.gr$shape <- ifelse(grepl("^rs", names(sample.gr)), "circle", "diamond")
-    
-    sample.gr.rot <- sample.gr
-    sample.gr.rot$label.parameter.rot <- 45
-    if (canonical_var != "YES") {names(sample.gr.rot) <- NULL}
+  # Prepare features
+  feature2plot <- c("Domain", "Motif", "Region", "Zinc finger")
+  features <- protein_info[protein_info$type %in% feature2plot, ]
   
-    # Plot Per Se       
-    pdf(paste0(gene_name,"_", canonical_label,"_Lollipop2.0.pdf"))
-    lolliplot(sample.gr.rot, features, legend=legends,ylab="Num. of Samples")
-    grid.text(paste0("High ",canonical_label," Variants of ", gene_name), x=.5, y=.98,gp=gpar(cex=1.5, fontface="bold"))
-    dev.off() 
-    
+  if(length(features) == 0) {
+    cat("No protein features available for Lollipop plot\n")
+    return()
   }
-} else {
-  cat("No CANONICAL_annotation column found. Skipping lollipop plots.\n")
+  
+  # Prepare colors and labels for features
+  features$Note <- trimws(features$Note)
+  note_colors <- setNames(my_pal[1:length(unique(features$Note))], unique(features$Note))
+  features$fill <- note_colors[features$Note]
+  names(features) <- features$Note
+  
+  # Create variants GRanges
+  sample.gr <- GRanges(seqnames = paste0(unique(seqnames(features))), 
+                       ranges = IRanges(start = df_data$Protein_pos_start, width = 1, 
+                                       names = df_data$LabelVarPlot))
+  
+  # Prepare variant properties
+  sample.gr$score <- df_data$NS_variant
+  sample.gr$Consequence_annotation <- df_data$Consequence_annotation
+  sample.gr$color <- setNames(pastel_colors, unique(sample.gr$Consequence_annotation))[sample.gr$Consequence_annotation]
+  legends <- list(labels=unique(sample.gr$Consequence_annotation), fill=unique(sample.gr$color))
+  sample.gr$shape <- ifelse(grepl("^rs", names(sample.gr)), "circle", "diamond")
+  
+  # Prepare for plotting
+  sample.gr.rot <- sample.gr
+  sample.gr.rot$label.parameter.rot <- 45
+  
+  # Create filename and plot
+  filename <- paste0(gene_name, "_Lollipop_", subset_label, ".pdf")
+
+  pdf(filename, width=10, height=5)
+  lolliplot(sample.gr.rot, features, legend=legends, ylab="Num. of Samples",
+            yaxis.gp = gpar(fontsize=15), xaxis.gp = gpar(fontsize=15))
+  grid.text(paste0(subset_label, " Variants of ", gene_name), 
+                   x=.5, y=.95, gp=gpar(cex=1.5, fontface="bold"))
+  dev.off()
+  
+  cat("Generated:", filename, "\n")
 }
 
+# Configuration for variant subsets -------------------------------------------
+# Define which combinations to analyze
+variant_subsets <- list(
+  # High priority combinations
+  list(
+    name = "HIGH_All",
+    filters = list(IMPACT_annotation = "HIGH"),
+    description = "High_Impact_All"
+  ),
+  list(
+    name = "HIGH_Canonical",
+    filters = list(IMPACT_annotation = "HIGH", CANONICAL_annotation = "YES"),
+    description = "High_Impact_Canonical"
+  ),
+  list(
+    name = "HIGH_NonCanonical", 
+    filters = list(IMPACT_annotation = "HIGH"),
+    special_filters = list(CANONICAL_annotation = "not_YES"),  # This will include NA and other values
+    description = "High_Impact_NonCanonical"
+  ),
+  list(
+    name = "MODERATE_All",
+    filters = list(IMPACT_annotation = "MODERATE"),
+    description = "Moderate_Impact_All"
+  ),
+  list(
+    name = "MODERATE_Canonical",
+    filters = list(IMPACT_annotation = "MODERATE", CANONICAL_annotation = "YES"), 
+    description = "Moderate_Impact_Canonical"
+  )#,
+  # Lower priority combinations (uncomment if needed)
+  # list(
+  #   name = "MODERATE_NonCanonical",
+  #   filters = list(IMPACT_annotation = "MODERATE"),
+  #   special_filters = list(CANONICAL_annotation = "not_YES"),
+  #   description = "Moderate_Impact_NonCanonical"
+  # ),
+  # list(
+  #   name = "LOW_All", 
+  #   filters = list(IMPACT_annotation = "LOW"),
+  #   description = "Low_Impact_All"
+  # )
+)
 
-cat("QC plotting for gene:", gene_name, "\n")
-cat("Plots generated successfully!\n")
+# Generate Lollipop Plots ------------------------------------------------------
+cat("Generating lollipop plots for prioritized variant subsets...\n")
+
+for (subset_config in variant_subsets) {
+  
+  # Apply standard filters
+  df_subset <- variants_table
+  for (column in names(subset_config$filters)) {
+    if (column %in% colnames(variants_table)) {
+      df_subset <- df_subset %>% 
+        filter(!!sym(column) == subset_config$filters[[column]])
+    } else {
+      cat("Warning: Column", column, "not found in data. Skipping subset", subset_config$name, "\n")
+      next
+    }
+  }
+  
+  # Apply special filters (for more complex filtering like "not YES")
+  if (!is.null(subset_config$special_filters)) {
+    for (column in names(subset_config$special_filters)) {
+      if (column %in% colnames(variants_table)) {
+        filter_value <- subset_config$special_filters[[column]]
+        if (filter_value == "not_YES") {
+          # Include everything except "YES" (includes NA, "NO", etc.)
+          df_subset <- df_subset %>% 
+            filter(is.na(!!sym(column)) | !!sym(column) != "YES")
+        }
+        # Add more special filter types here if needed
+      } else {
+        cat("Warning: Column", column, "not found in data. Skipping special filter\n")
+      }
+    }
+  }
+  
+  # Additional base filters for lollipop plots
+  df_subset <- df_subset %>% 
+    filter(!is.na(Protein_pos_start), !is.na(NS_variant), NS_variant > 0)
+  
+  # Check if we have data to plot
+  if (nrow(df_subset) == 0) {
+    cat("No variants found for subset:", subset_config$description, "\n")
+    next
+  }
+  
+
+  # Generate lollipop plot
+  cat("Processing subset:", subset_config$description, "(", nrow(df_subset), "variants )\n")
+  create_lollipop2_plot(df_subset, gene_name, subset_config$description, protein_info)
+}
+
+cat("Plots generated successfully for gene:", gene_name, "\n")

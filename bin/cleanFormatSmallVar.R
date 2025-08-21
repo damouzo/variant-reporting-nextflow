@@ -21,12 +21,12 @@ variant_table <- read_tsv(annotation_file)
 # Clean Data -------------------------------------------------------------------
 # Deal with column format issues
 columns_to_character <- c("CHROM_variant", "Location_annotation", "Het_samples",
-                          "Hemi_samples", "Hom_samples")
+              "Hemi_samples", "Hom_samples")
 columns_to_numeric <- c("TSL_annotation")
 
 variant_table <- variant_table %>%
-  mutate(across(all_of(columns_to_character), as.character, .names = "converted_{.col}"),
-         across(all_of(columns_to_numeric), as.numeric, .names = "converted_{.col}"))
+  mutate(across(all_of(columns_to_character), as.character),
+     across(all_of(columns_to_numeric), as.numeric))
 
 
 # Take care of possible ? characters in HGNC_ID
@@ -45,11 +45,14 @@ variant_table$IMPACT_annotation <- factor(
 )
 
 # Protein Position with Single Number(Taking care of "?-23")
-variant_table$Protein_pos_start <- ifelse(
-  str_detect(variant_table$Protein_position_annotation, "^\\?-\\d+$"),
-  as.numeric(str_extract(variant_table$Protein_position_annotation, "\\d+$")),
-  as.numeric(sub("-.*", "", variant_table$Protein_position_annotation))
-)
+variant_table <- variant_table %>%
+  mutate(
+    Protein_pos_start = case_when(
+      str_detect(Protein_position_annotation, "^\\?-\\d+$") ~ as.numeric(str_extract(Protein_position_annotation, "\\d+$")),
+      str_detect(Protein_position_annotation, "^\\d+-\\d+$") ~ as.numeric(str_extract(Protein_position_annotation, "^\\d+")),
+      TRUE ~ as.numeric(Protein_position_annotation)
+    )
+  )
 
 # Add naming Labeling Variants when not available existing var annot
 variant_table <- variant_table %>%
