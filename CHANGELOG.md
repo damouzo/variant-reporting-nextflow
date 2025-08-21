@@ -1,5 +1,9 @@
 # Changelog
 
+## [v1.0.0] - 2025-08-21
+- Finalized first version of all modules and subworkflows for small and structural variant QC.
+- Comprehensive documentation added, including pipeline execution reports and DAG visualization.
+- Optimized R scripts for data cleaning and QC plotting.
 
 ## [v0.1.0] - 2025-08-20
 - Enhanced `cleanFormatSmallVar.R` with additional data cleaning and output validation.

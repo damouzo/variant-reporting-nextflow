@@ -11,7 +11,7 @@ process plotQCstructVar {
 
     // Save all PDFs generated
     output:
-    path "plots/struct_variants/*.pdf"
+    path "*.pdf"
 
     script:
     """

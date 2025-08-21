@@ -9,7 +9,8 @@ process cleanFormatStructVar {
         tuple path(struct_cnv_variants), path(struct_sv_variants), val(gene_name)
 
     output:
-        tuple path("${gene_name}_structural_variants.tsv"), val(gene_name)
+        tuple path("${gene_name}_structural_variants.rds"), val(gene_name), emit: struct_rds
+        val("${gene_name}_structural_variants.tsv")
         path "versions.yml", emit: versions
 
     script:

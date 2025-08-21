@@ -71,7 +71,7 @@ workflow QC_STRUCT_VARIANTS {
     cleanFormatStructVar(combined_struct_ch)
 
     // RUN plotQCstructVar
-    plotQCstructVar(cleanFormatStructVar.out[0])
+    plotQCstructVar(cleanFormatStructVar.out.struct_rds)
 
     // Collect versions
     ch_versions = ch_versions.mix(cleanFormatStructVar_CNV.out.versions)

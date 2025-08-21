@@ -8,7 +8,7 @@ process cleanFormatStructVar_SV {
         tuple path(sv_germline_annot_file), path(sv_somatic_annot_file), val(gene_name)
 
     output:
-        tuple path("${gene_name}_struct_sv_variants.tsv"), val(gene_name)
+        tuple path("${gene_name}_struct_sv_variants.rds"), val(gene_name)
         path "versions.yml", emit: versions
 
     script:
@@ -18,6 +18,7 @@ process cleanFormatStructVar_SV {
     echo "  Germline: ${sv_germline_annot_file}"
     echo "  Somatic:  ${sv_somatic_annot_file}"
 
+    # Run the R script
     cleanFormatStructVar_SV.R ${sv_germline_annot_file} ${sv_somatic_annot_file} ${gene_name}
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
