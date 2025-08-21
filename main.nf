@@ -1,6 +1,16 @@
 #!/usr/bin/env nextflow
-
 nextflow.enable.dsl = 2
+
+// Input validation
+if (!file(params.gene_list).exists()) {
+    error "Gene list file not found: ${params.gene_list}"
+}
+if (!file(params.smallvar_annot_dir).exists()) {
+    error "Small variants annotation directory not found: ${params.smallvar_annot_dir}"
+}
+if (!file(params.structvar_annot_dir).exists()) {
+    error "Structural variants annotation directory not found: ${params.structvar_annot_dir}"
+}
 
 log.info """
 ===========================================

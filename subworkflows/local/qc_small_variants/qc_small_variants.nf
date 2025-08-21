@@ -12,6 +12,9 @@ workflow QC_SMALL_VARIANTS {
     exon_files_ch   // channel: exon annotation files
 
     main:
+    // Create versions channel
+    ch_versions = Channel.empty()
+
     // Prepare input for cleanFormatSmallVar
     clean_input_ch = small_var_ch
         .combine(gene_list_ch)
@@ -34,8 +37,13 @@ workflow QC_SMALL_VARIANTS {
     // RUN plotQCsmallVar
     plotQCsmallVar(plot_input_ch)
 
+    // Collect versions
+    ch_versions = ch_versions.mix(cleanFormatSmallVar.out.versions)
+    ch_versions = ch_versions.mix(plotQCsmallVar.out.versions)
+
     emit:
-    clean_tsv   = cleanFormatSmallVar.out.clean_tsv  // File TSV
-    clean_rds   = cleanFormatSmallVar.out.clean_rds  // tuple(path(rds_file), val(gene_name))
-    plots       = plotQCsmallVar.out
+    clean_tsv   = cleanFormatSmallVar.out.clean_tsv     // File TSV
+    clean_rds   = cleanFormatSmallVar.out.clean_rds     // tuple(path(rds_file), val(gene_name))
+    plots       = plotQCsmallVar.out[0]                 // PDFs
+    versions    = ch_versions
 }

@@ -10,6 +10,7 @@ process cleanFormatSmallVar {
     output:
         path("${gene_name}_small_variants.tsv"), emit: clean_tsv
         tuple path("${gene_name}_small_variants.rds"), val(gene_name), emit: clean_rds
+        path "versions.yml", emit: versions
 
     script:
     """
@@ -28,5 +29,10 @@ process cleanFormatSmallVar {
     fi
     
     echo "Both TSV and RDS files created successfully"
+    
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        r-base: \$(R --version | head -n1 | sed 's/R version //; s/ .*//')
+    END_VERSIONS
     """
 }
