@@ -26,7 +26,7 @@ paths:
   output:
     results: "results"
     logs: "results/pipeline_info/logs"
-    work: "work"
+  work: "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/work"
 
 
 # Archivos específicos

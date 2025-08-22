@@ -18,20 +18,20 @@ paths:
   data:
     raw_data: "data/raw_data"
     processed: "data/processed"
-    smallvar_annot: "data/raw_data/WGS_Variants/smallVar"
-    structvar_annot: "data/raw_data/WGS_Variants/structuralVar"
+    smallvar_annot: "data/raw_data/WGS_Variants/250807_small_variant_100K_DDX41_DHX34/results"
+    structvar_annot: "data/raw_data/WGS_Variants/250812_structural_variant/results"
     reference:
       protein: "data/reference/Protein"
       exon: "data/reference/Exon"
   output:
     results: "results"
     logs: "results/pipeline_info/logs"
-    work: "work"
+  work: "/nas/weka.gel.zone/re_scratch/re_gecip/cancer_haem/dmouzo"
 
 
 # Archivos específicos
 files:
-  gene_list: "data/gene_list.txt"
+  gene_list: "conf/small_struct_var_qc/gene_list.txt"
 
 # Configuración de recursos
 resources:

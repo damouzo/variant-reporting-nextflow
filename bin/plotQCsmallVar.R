@@ -32,8 +32,6 @@ cat("All input files validated successfully\n")
 
 # Libraries  -------------------------------------------------------------------
 library(tidyverse)
-library(ggrepel)
-library(Rlabkey)
 library(rtracklayer)
 library(trackViewer)
 library(GenomicRanges)
