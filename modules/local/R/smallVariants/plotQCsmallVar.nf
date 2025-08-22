@@ -2,6 +2,7 @@
 
 process plotQCsmallVar {
     tag { gene_name }
+    label 'r_process'
 
     // Publicar todos los PDFs generados en subcarpeta organizada por gen
     publishDir "${params.results_dir}/${gene_name}/plots/small_variants", mode: 'copy'

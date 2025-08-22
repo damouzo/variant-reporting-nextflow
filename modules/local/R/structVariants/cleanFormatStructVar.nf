@@ -2,7 +2,8 @@
 
 process cleanFormatStructVar {
     tag { gene_name }
-    //conda "r-base=4.3.0"
+    label 'r_process'
+    
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
 
     input:

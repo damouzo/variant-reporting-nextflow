@@ -2,7 +2,7 @@
 
 process cleanFormatStructVar_SV {
     tag { gene_name }
-    //conda "r-base=4.3.0"
+    label 'r_process'
 
     input:
         tuple path(sv_germline_annot_file), path(sv_somatic_annot_file), val(gene_name)
