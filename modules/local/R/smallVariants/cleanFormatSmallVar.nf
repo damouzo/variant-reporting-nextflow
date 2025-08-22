@@ -15,7 +15,7 @@ process cleanFormatSmallVar {
     script:
     """
     echo "Processing gene: ${gene_name} with annotation file: ${smallvar_annot_file}"
-    CleanFormatSmallVar.R ${smallvar_annot_file} ${gene_name}
+    cleanFormatSmallVar.R ${smallvar_annot_file} ${gene_name}
 
     # Check output files created
     if [ ! -f "${gene_name}_small_variants.tsv" ]; then
