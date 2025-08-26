@@ -8,7 +8,7 @@ process cleanFormatStructVar_CNV {
         tuple path(cnv_germline_annot_file), path(cnv_somatic_annot_file), val(gene_name)
 
     output:
-        tuple path("${gene_name}_struct_cnv_variants.rds"), val(gene_name)
+        tuple path("${gene_name}_struct_cnv_variants.rds"), val(gene_name), emit: clean_cnv
         path "versions.yml", emit: versions
 
     script:
@@ -28,7 +28,7 @@ process cleanFormatStructVar_CNV {
 
     stub:
     """
-    touch ${gene_name}_struct_cnv_variants.tsv
+    touch ${gene_name}_struct_cnv_variants.rds
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         r-base: 4.3.0

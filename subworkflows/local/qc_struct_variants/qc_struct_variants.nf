@@ -3,6 +3,7 @@
 include { cleanFormatStructVar_SV } from '../../../modules/local/R/structVariants/cleanFormatStructVar_SV.nf'
 include { cleanFormatStructVar_CNV } from '../../../modules/local/R/structVariants/cleanFormatStructVar_CNV.nf'
 include { cleanFormatStructVar } from '../../../modules/local/R/structVariants/cleanFormatStructVar.nf'
+include { extractStructVarPartID } from '../../../modules/local/R/structVariants/extractStructVarPartID.nf'
 include { plotQCstructVar } from '../../../modules/local/R/structVariants/plotQCstructVar.nf'
 
 
@@ -55,10 +56,10 @@ workflow QC_STRUCT_VARIANTS {
     cleanFormatStructVar_SV(sv_input_ch) 
 
     // Combine CNV and SV channels 
-    cnv_clean_ch = cleanFormatStructVar_CNV.out[0]
+    cnv_clean_ch = cleanFormatStructVar_CNV.out.clean_cnv
         .map { file, gene -> tuple(gene, file) }  // Put gene first
-    
-    sv_clean_ch = cleanFormatStructVar_SV.out[0]
+
+    sv_clean_ch = cleanFormatStructVar_SV.out.clean_sv
         .map { file, gene -> tuple(gene, file) }   // Put gene first
 
     combined_struct_ch = cnv_clean_ch
@@ -70,6 +71,11 @@ workflow QC_STRUCT_VARIANTS {
     // RUN cleanFormatStructVar
     cleanFormatStructVar(combined_struct_ch)
 
+    // RUN extractStructVarPartID
+    extractStructVarPartID(cleanFormatStructVar.out.struct_rds, params.labkey_main)
+            // out.partID: path(partID_file)
+            // out.partMet: path(partMetadata_file)
+
     // RUN plotQCstructVar
     plotQCstructVar(cleanFormatStructVar.out.struct_rds)
 
@@ -77,11 +83,17 @@ workflow QC_STRUCT_VARIANTS {
     ch_versions = ch_versions.mix(cleanFormatStructVar_CNV.out.versions)
     ch_versions = ch_versions.mix(cleanFormatStructVar_SV.out.versions)
     ch_versions = ch_versions.mix(cleanFormatStructVar.out.versions)
+    ch_versions = ch_versions.mix(plotQCstructVar.out.versions) 
+    if (params.enable_sql_queries) {
+        ch_versions = ch_versions.mix(extractStructVarPartID.out.versions)
+    }
 
     emit:
-    clean_cnv_tables = cnv_clean_ch.map { gene, file -> tuple(file, gene) }  // Return to original format
-    clean_sv_tables  = sv_clean_ch.map { gene, file -> tuple(file, gene) }   // Return to original format
-    final_tables     = cleanFormatStructVar.out[0]
+    clean_cnv_tables = cnv_clean_ch.map { gene, file -> tuple(file, gene) } 
+    clean_sv_tables  = sv_clean_ch.map { gene, file -> tuple(file, gene) }  
+    partID      = params.enable_sql_queries ? extractStructVarPartID.out.partID : Channel.empty()
+    partMet     = params.enable_sql_queries ? extractStructVarPartID.out.partMet : Channel.empty()
+    final_tables     = cleanFormatStructVar.out.struct_rds
     versions         = ch_versions
 }
 

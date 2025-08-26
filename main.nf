@@ -24,8 +24,6 @@ Data Root       : ${params.data_root}
 Output Root     : ${params.output_root}
 Results Dir     : ${params.results_dir}
 Work Dir        : ${workDir}
-===========================================
-R Library Path  : ${params.r_lib_path ?: 'System default'}
 LabKey Main     : ${params.labkey_main}
 ===========================================
 """

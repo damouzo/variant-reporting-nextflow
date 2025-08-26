@@ -11,7 +11,7 @@ process cleanFormatStructVar {
 
     output:
         tuple path("${gene_name}_structural_variants.rds"), val(gene_name), emit: struct_rds
-        val("${gene_name}_structural_variants.tsv")
+        path("${gene_name}_structural_variants.tsv")
         path "versions.yml", emit: versions
 
     script:
@@ -21,6 +21,17 @@ process cleanFormatStructVar {
     echo "  SV:  ${struct_sv_variants}"
     cleanFormatStructVar.R ${struct_cnv_variants} ${struct_sv_variants} ${gene_name}
     
+    # Check output files created
+    if [ ! -f "${gene_name}_structural_variants.rds" ]; then
+        echo "Error: Structural variants RDS output file was not created"
+        exit 1
+    fi
+
+    if [ ! -f "${gene_name}_structural_variants.tsv" ]; then
+        echo "Error: Structural variants TSV output file was not created"
+        exit 1
+    fi
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         r-base: \$(R --version | head -n1 | sed 's/R version //; s/ .*//')
@@ -29,6 +40,7 @@ process cleanFormatStructVar {
 
     stub:
     """
+    touch ${gene_name}_structural_variants.rds 
     touch ${gene_name}_structural_variants.tsv
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

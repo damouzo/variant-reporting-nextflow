@@ -27,6 +27,7 @@ workflow QC_SMALL_VARIANTS {
             // out.clean_tsv: path(tsv_file) 
             // out.clean_rds: tuple(path(rds_file), val(gene_name))
 
+    // RUN extractSmallVarPartID
     extractSmallVarPartID(cleanFormatSmallVar.out.clean_rds, params.labkey_main)
             // out.partID: path(partID_file)
             // out.partMet: path(partMetadata_file)
