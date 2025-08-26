@@ -46,9 +46,8 @@ resources:
 
 # Configuración externa
 external:
-  libPath: "/tools/aws-workspace-apps/ce/R/4.0.2"  # Default R in the system
   labkey_project: 
-    main: "main-programme_v19_2024-10-31"
+    main: "/main-programme/main-programme_v19_2024-10-31"
     nhs-gms: "unknown"
 
 # Configuración específica del entorno

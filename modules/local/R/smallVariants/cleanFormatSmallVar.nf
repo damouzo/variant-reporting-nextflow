@@ -1,4 +1,4 @@
-// Nextflow proces to call the R script for cleaning and formatting small variants
+// Nextflow process to call the R script for cleaning and formatting small variants
 
 process cleanFormatSmallVar {
     tag { gene_name }
