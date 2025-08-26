@@ -33,9 +33,6 @@ library(paletteer)
 # Settings ----------------------------------------------------------------------
 set.seed(23)
 
-# Palettete ---------------------------------------------------------------------
-my_pal <- c("#df4e50ff", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00", 
-            "#FFFF33", "#A65628", "#df75adff", "#844db8ff", "#66C2A5")
 
 # Load Data ---------------------------------------------------------------------
 ## Structural Variants
@@ -46,14 +43,17 @@ variants_table <- readRDS(struct_variants)
 generate_barplot <- function(data, gene, variant_orig) {
   pdf(paste0(gene, "_", variant_orig, "_Frec_SVtype.pdf"), width = 10, height = 8)
   print(
-    ggplot(data %>% count(INFO_SVTYPE), aes(x = INFO_SVTYPE, y = n, fill = INFO_SVTYPE)) +
-      geom_col() +
+    ggplot(data %>% count(INFO_SVTYPE), aes(x = INFO_SVTYPE, y = n)) +
+      geom_col(fill = "#377EB8") +
       geom_text(aes(label = n), vjust = -0.5) +
       theme_minimal() +
       labs(title = paste0("Frequency of ", variant_orig, " variants for ", gene),
            x = "Type of Structural Variant", y = "Number of Structural Variants") +
-      scale_fill_manual(values = my_pal) +
-      theme(legend.position = "none"))
+      theme(legend.position = "none",
+            axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12),
+            axis.title.x = element_text(size = 14), axis.title.y = element_text(size = 14),
+            plot.title = element_text(size = 16))
+  )
   dev.off()
 }
 
@@ -84,7 +84,9 @@ generate_cnv_plot <- function(data, gene, variant_orig) {
         title = paste0("Size vs Copy Number of ", variant_orig, " CNVs of ", gene),
         x = "log10(Size in bp)", y = "Copy Number"
       ) +
-      scale_color_brewer(palette = "Set2", na.value = "grey50")
+      scale_color_brewer(palette = "Set2", na.value = "grey50") +
+      scale_y_continuous(breaks = seq(floor(min(data$CN_CNVonly, na.rm = TRUE)), 
+                                      ceiling(max(data$CN_CNVonly, na.rm = TRUE)), by = 1))
   )
   dev.off()
 }

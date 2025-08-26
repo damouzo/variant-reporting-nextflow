@@ -7,10 +7,10 @@ if (length(args) != 4) {
   stop("script.R <gene_name> <clean_table> <prot_file> <exon_file>")
 }
 
-clean_table     <- args[1] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\results\\DDX41\\DDX41_small_variants.rds"
-gene_name       <- args[2] # "DDX41"
-prot_file       <- args[3] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\data\\reference\\Protein\\DDX41.gff"
-exon_file       <- args[4] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\data\\reference\\Exon\\DDX41.tsv"
+clean_table     <- args[1] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\results\\DHX34\\DHX34_small_variants.rds"
+gene_name       <- args[2] # "DHX34"
+prot_file       <- args[3] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\data\\reference\\Protein\\DHX34.gff"
+exon_file       <- args[4] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\data\\reference\\Exon\\DHX34.tsv"
 
 
 # Message validation files
@@ -116,9 +116,25 @@ if (nrow(valid_groups) > 0) {
   max_density <- 0
 }
 
+# Calculate gene length and adaptive bandwidth
+gene_start <- min(c(variants_table$POS_variant, exon_info$ExonStart), na.rm = TRUE)
+gene_end <- max(c(variants_table$POS_variant, exon_info$ExonEnd), na.rm = TRUE)
+gene_length <- gene_end - gene_start
+
+adaptive_bw <- case_when(  # Define adaptive bandwidth based on gene length
+  gene_length < 10000 ~ max(gene_length / 20, 100),    # For genes <10kb, bw = gene_length/20, minimum 100bp
+  gene_length < 100000 ~ gene_length / 50,             # For genes 10kb-100kb, bw = gene_length/50
+  TRUE ~ gene_length / 100                             # For genes >100kb, bw = gene_length/100
+)
+
+adaptive_bw <- round(adaptive_bw / 100) * 100
+
+cat(paste0("Gene length: ", format(gene_length, big.mark = ","), " bp\n"))
+cat(paste0("Adaptive bandwidth: ", format(adaptive_bw, big.mark = ","), " bp\n"))
+
 pdf(paste0(gene_name,"_Density_variants.pdf"), width=14, height=8)
 ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IMPACT_annotation)) +
-    geom_density(bw=500,alpha = 0.3) +  # Bandwidth of 1kB
+    geom_density(bw=adaptive_bw,alpha = 0.3) +
     geom_rect(data = exon_info,
               aes(xmin = ExonStart, xmax = ExonEnd, ymin = -max_density*0.03, ymax = max_density*0.03),
               fill = "#00441B", alpha = 1, inherit.aes = FALSE) +
@@ -129,7 +145,7 @@ ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IM
     scale_fill_manual(values = paletteer_d("RColorBrewer::RdYlGn")[c(1,3,5,10)]) +
     facet_wrap(~ CHROM_variant, scales = "free_x") +
     labs(title = paste0("Density distribution of ",gene_name ," variants in genomic positions by impact annotation"),
-        x = "Genomic Position (exons in dark green)", y = "Density  bw = 0.5kb",color = "Impact", fill = "Impact") +
+        x = "Genomic Position (exons in dark green)", y = paste0("Density bw = ",adaptive_bw," bp"), color = "Impact", fill = "Impact") +
     theme_minimal()
 dev.off()
 
@@ -172,11 +188,11 @@ create_lollipop2_plot <- function(df_data, gene_name, subset_label, protein_info
   # Create filename and plot
   filename <- paste0(gene_name, "_Lollipop_", subset_label, ".pdf")
 
-  pdf(filename, width=10, height=5)
+  pdf(filename)
   lolliplot(sample.gr.rot, features, legend=legends, ylab="Num. of Samples",
             yaxis.gp = gpar(fontsize=15), xaxis.gp = gpar(fontsize=15))
   grid.text(paste0(subset_label, " Variants of ", gene_name), 
-                   x=.5, y=.95, gp=gpar(cex=1.5, fontface="bold"))
+                   x=.5, y=.98, gp=gpar(cex=1.5, fontface="bold"))
   dev.off()
   
   cat("Generated:", filename, "\n")

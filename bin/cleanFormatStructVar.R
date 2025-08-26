@@ -29,6 +29,9 @@ colnames(CNV)[colnames(CNV) %in% unique_CNV_col] <- paste0(unique_CNV_col, "_CNV
 
 CNV_SV <- bind_rows(CNV, SV)
 
+# Convert INFO_SVTYPE to a factor with levels in reverse alphabetical order
+CNV_SV$INFO_SVTYPE <- factor(CNV_SV$INFO_SVTYPE, levels = sort(unique(CNV_SV$INFO_SVTYPE), decreasing = TRUE))
+
 
 # Outputs -----------------------------------------------------------------------
 # Save rds file
