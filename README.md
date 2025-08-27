@@ -15,6 +15,11 @@ Variants in DHX34 and DDX41 have been implicated in inherited and acquired forms
 - Generation of summary statistics and publication-ready plots.
 - Modular and reproducible workflows using Nextflow and R.
 
+## Nextflow Metro Plot
+Below is the Nextflow Metro Plot used in the project:
+
+![Nextflow Metro Plot](docs/4. Images/Nextflow MetroPlots/Nextflow.drawio.png)
+
 ## Project Structure
 - `main.nf`, `nextflow.config`: Main Nextflow pipeline and configuration.
 - `bin/`: R scripts for data cleaning and plotting.

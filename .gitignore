@@ -16,3 +16,6 @@ results/
 .RData
 .Ruserdata
 .lintr
+
+# Exclude MetroPlot
+!docs/4. Images/Nextflow MetroPlots/Nextflow.drawio.png
