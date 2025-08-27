@@ -3,7 +3,7 @@
 ###########################################
 # Folders 
 data/
-docs/
+docs/[0-9]*
 work/
 results/
 
@@ -16,6 +16,3 @@ results/
 .RData
 .Ruserdata
 .lintr
-
-# Exclude MetroPlot
-!docs/4. Images/Nextflow MetroPlots/Nextflow.drawio.png

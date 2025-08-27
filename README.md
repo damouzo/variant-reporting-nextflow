@@ -18,7 +18,7 @@ Variants in DHX34 and DDX41 have been implicated in inherited and acquired forms
 ## Nextflow Metro Plot
 Below is the Nextflow Metro Plot used in the project:
 
-![Nextflow Metro Plot](docs/4.%20Images/Nextflow%20MetroPlots/Nextflow.drawio.png)
+![Nextflow Metro Plot](docs/images/Nextflow_MetroPlots/Nextflow.drawio.png)
 
 ## Project Structure
 - `main.nf`, `nextflow.config`: Main Nextflow pipeline and configuration.
