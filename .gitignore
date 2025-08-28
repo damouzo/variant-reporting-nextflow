@@ -18,4 +18,4 @@ results/
 .lintr
 
 # Container
-conf/*.sif
+conf/containers/*.sif
