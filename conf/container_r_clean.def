@@ -1,0 +1,30 @@
+Bootstrap: docker
+From: continuumio/miniconda3:latest
+
+%labels
+    Description "Singularity container with R 4.3.3, tidyverse, circlize, paletteer, and Bioconductor packages"
+
+%environment
+    # Activate default conda environment
+    export PATH=/opt/conda/envs/r_env/bin:$PATH
+
+%post
+    # Update conda and prepare environment
+    conda install -y mamba -n base -c conda-forge
+    mamba create -y -n r_env -c conda-forge -c bioconda r-base=4.3.3 \
+        r-essentials \
+        r-tidyverse \
+        r-circlize \
+        r-paletteer \
+        bioconductor-rtracklayer \
+        bioconductor-genomicranges \
+        bioconductor-trackviewer
+
+    # Clean up to reduce size
+    conda clean -afy
+
+%runscript
+    # If you run the container directly, open R
+    exec R "$@"
+
+# sudo singularity build container_r_clean.sif container_r_clean.def

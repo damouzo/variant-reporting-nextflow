@@ -16,3 +16,6 @@ results/
 .RData
 .Ruserdata
 .lintr
+
+# Container
+conf/*.sif
