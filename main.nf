@@ -17,7 +17,7 @@ log.info """
 ${params.project_code} : ${params.project_name}
 ===========================================
 Environment     : ${params.environment_type}
-Genome Assembly : ${params.genome_assembly}
+ConfigFile      : ${params.config_file}
 ===========================================
 Gene List File  : ${params.gene_list}
 Data Root       : ${params.data_root}
