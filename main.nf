@@ -17,14 +17,10 @@ log.info """
 ${params.project_code} : ${params.project_name}
 ===========================================
 Environment     : ${params.environment_type}
-ConfigFile      : ${params.config_file}
 ===========================================
 Gene List File  : ${params.gene_list}
-Data Root       : ${params.data_root}
-Output Root     : ${params.output_root}
 Results Dir     : ${params.results_dir}
 Work Dir        : ${workDir}
-LabKey Main     : ${params.labkey_main}
 ===========================================
 """
 
