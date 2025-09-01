@@ -28,7 +28,6 @@ Below is the Nextflow Metro Plot used in the project:
 - `modules/`, `subworkflows/`: Modular Nextflow components.
 - `docs/`: Documentation and project presentations.
 
-## Contact
-For questions or collaboration, please contact the project lead or open an issue in this repository.
+
 
 
