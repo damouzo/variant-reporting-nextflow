@@ -7,9 +7,6 @@ process extractSmallVarPartID {
 
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
 
-    when: 
-    params.enable_sql_queries
-
     input:
         tuple path(smallvar_annot_file), val(gene_name)
         val labkey_main
@@ -18,6 +15,9 @@ process extractSmallVarPartID {
         path("${gene_name}_small_variants_participantID.txt"), emit: partID
         path("${gene_name}_small_variants_participantMetadata.tsv"), emit: partMet
         path "versions.yml", emit: versions
+
+    when: 
+        params.enable_sql_queries
 
     script:
     """

@@ -1,33 +1,33 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl = 2
 
-// Input validation
-if (!file(params.gene_list).exists()) {
-    error "Gene list file not found: ${params.gene_list}"
-}
-if (!file(params.smallvar_annot_dir).exists()) {
-    error "Small variants annotation directory not found: ${params.smallvar_annot_dir}"
-}
-if (!file(params.structvar_annot_dir).exists()) {
-    error "Structural variants annotation directory not found: ${params.structvar_annot_dir}"
-}
-
-log.info """
-===========================================
-${params.project_code} : ${params.project_name}
-===========================================
-Environment     : ${params.environment_type}
-===========================================
-Gene List File  : ${params.gene_list}
-Results Dir     : ${params.results_dir}
-Work Dir        : ${workDir}
-===========================================
-"""
-
 include { QC_SMALL_VARIANTS  } from './subworkflows/local/qc_small_variants/qc_small_variants.nf'
 include { QC_STRUCT_VARIANTS } from './subworkflows/local/qc_struct_variants/qc_struct_variants.nf'
 
 workflow {
+        // Input validation
+    if (!file(params.gene_list).exists()) {
+        error "Gene list file not found: ${params.gene_list}"
+    }
+    if (!file(params.smallvar_annot_dir).exists()) {
+        error "Small variants annotation directory not found: ${params.smallvar_annot_dir}"
+    }
+    if (!file(params.structvar_annot_dir).exists()) {
+        error "Structural variants annotation directory not found: ${params.structvar_annot_dir}"
+    }
+
+    log.info """
+    ===========================================
+    ${params.project_code} : ${params.project_name}
+    ===========================================
+    Environment     : ${params.environment_type}
+    ===========================================
+    Gene List File  : ${params.gene_list}
+    Results Dir     : ${params.results_dir}
+    Work Dir        : ${workDir}
+    ===========================================
+    """
+
     // Gene list
     gene_list_ch = Channel
         .fromPath(params.gene_list)
@@ -60,9 +60,8 @@ workflow {
         struct_var_ch,
         gene_list_ch
     )
-}
 
-// This helps catch any errors in the pipeline
-workflow.onError {
-    log.error "Pipeline execution stopped with the following error: ${workflow.errorMessage}"
+    workflow.onError = {
+        log.error "Pipeline execution stopped with the following error: ${workflow.errorMessage}"
+    }   
 }

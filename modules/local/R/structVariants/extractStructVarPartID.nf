@@ -7,9 +7,6 @@ process extractStructVarPartID {
 
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
 
-    when: 
-    params.enable_sql_queries
-
     input:
         tuple path(strucvar_annot_file), val(gene_name)
         val labkey_main
@@ -18,6 +15,9 @@ process extractStructVarPartID {
         path("${gene_name}_structural_variants_participantID.txt"), emit: partID
         path("${gene_name}_structural_variants_participantMetadata.tsv"), emit: partMet
         path "versions.yml", emit: versions
+    
+    when: 
+        params.enable_sql_queries
 
     script:
     """
