@@ -11,6 +11,7 @@ results/
 .nextflow*
 *.log
 .vscode/
+*.Rproj
 .Rproj.user
 .Rhistory
 .RData

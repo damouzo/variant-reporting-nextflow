@@ -41,7 +41,7 @@ workflow QC_SMALL_VARIANTS {
         .map { clean_table, gene_name, gff_file, exon_file -> tuple(clean_table, gene_name, gff_file, exon_file) }
     
     // RUN plotQCsmallVar
-    plotQCsmallVar(plot_input_ch)
+    plotQCsmallVar(plot_input_ch, extractSmallVarPartID.out.partMet)
             // out.plots: path(plot_file)
 
     // Collect versions

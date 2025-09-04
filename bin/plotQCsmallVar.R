@@ -3,15 +3,15 @@
 
 # Arguments --------------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 4) {
-  stop("script.R <gene_name> <clean_table> <prot_file> <exon_file>")
+if (length(args) != 5) {
+  stop("script.R <clean_table> <gene_name> <prot_file> <exon_file> <part_metadata_file>")
 }
 
 clean_table     <- args[1] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\results\\DHX34\\DHX34_small_variants.rds"
 gene_name       <- args[2] # "DHX34"
 prot_file       <- args[3] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\data\\reference\\Protein\\DHX34.gff"
 exon_file       <- args[4] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\data\\reference\\Exon\\DHX34.tsv"
-
+p_metadata_file <- args[5] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\results\\DHX34\\DHX34_small_variants_participantMetadata.tsv"
 
 # Message validation files
 cat("Validating input files for gene:", gene_name, "\n")
@@ -19,6 +19,7 @@ missing_files <- c()
 if (!file.exists(clean_table)) missing_files <- c(missing_files, paste("Clean table:", clean_table))
 if (!file.exists(prot_file)) missing_files <- c(missing_files, paste("Protein file:", prot_file))
 if (!file.exists(exon_file)) missing_files <- c(missing_files, paste("Exon file:", exon_file))
+if (!file.exists(p_metadata_file)) missing_files <- c(missing_files, paste("Participant metadata file:", p_metadata_file))
 
 if (length(missing_files) > 0) {
   cat("ERROR: Missing files detected:\n")
@@ -2021,6 +2022,9 @@ protein_info <- rtracklayer::import(prot_file)
 ## Exon tsv
 exon_info <- read_tsv(exon_file)
 
+## Participant Metadata
+metadata_info <- read_tsv(p_metadata_file)
+
 
 # Visual Plots -----------------------------------------------------------------
 ## Distribution of MAF_variants ------
@@ -2116,7 +2120,7 @@ dev.off()
     
 # Lollipop Plot Function -----------------------------------------------------
 # Function to create trackViewer lollipop plot
-create_lollipop2_plot <- function(df_data, gene_name, subset_label, protein_info) {
+create_lollipop_plot <- function(df_data, gene_name, subset_label, protein_info, metadata_info) {
   
   # Prepare features
   feature2plot <- c("Domain", "Motif", "Region", "Zinc finger")
@@ -2138,8 +2142,24 @@ create_lollipop2_plot <- function(df_data, gene_name, subset_label, protein_info
                        ranges = IRanges(start = df_data$Protein_pos_start, width = 1, 
                                        names = df_data$LabelVarPlot))
   
+  # Add participant Info 
+  df_data <- df_data %>%
+    rowwise() %>%
+    mutate(samples_all = paste(Het_samples, Hom_samples, Hemi_samples, sep = ","),
+           samples_all = gsub(",+", ",", samples_all),     
+           samples_all = gsub("^,|,$", "", samples_all),   
+           samples_all = trimws(samples_all),
+           samples_vec = list(unique(unlist(strsplit(samples_all, ",")))),
+           participants_vec = list(
+             unique(na.omit(metadata_info$participant_id[match(samples_vec, metadata_info$plate_key)]))),
+           participants_ID = paste(participants_vec, collapse = ","),
+           participants_num = length(participants_vec)
+    ) %>%
+    ungroup()  %>%
+    select(-samples_vec, -participants_vec)
+  
   # Prepare variant properties
-  sample.gr$score <- df_data$NS_variant
+  sample.gr$score <- df_data$participants_num  
   sample.gr$Consequence_annotation <- df_data$Consequence_annotation
   sample.gr$color <- setNames(pastel_colors, unique(sample.gr$Consequence_annotation))[sample.gr$Consequence_annotation]
   legends <- list(labels=unique(sample.gr$Consequence_annotation), fill=unique(sample.gr$color))
@@ -2153,7 +2173,7 @@ create_lollipop2_plot <- function(df_data, gene_name, subset_label, protein_info
   filename <- paste0(gene_name, "_Lollipop_", subset_label, ".pdf")
 
   pdf(filename)
-  lolliplot(sample.gr.rot, features, legend=legends, ylab="Num. of Samples",
+  lolliplot(sample.gr.rot, features, legend=legends, ylab="Num. of Participants",
             yaxis.gp = gpar(fontsize=15), xaxis.gp = gpar(fontsize=15))
   grid.text(paste0(subset_label, " Variants of ", gene_name), 
                    x=.5, y=.98, gp=gpar(cex=1.5, fontface="bold"))
@@ -2253,7 +2273,7 @@ for (subset_config in variant_subsets) {
 
   # Generate lollipop plot
   cat("Processing subset:", subset_config$description, "(", nrow(df_subset), "variants )\n")
-  create_lollipop2_plot(df_subset, gene_name, subset_config$description, protein_info)
+  create_lollipop_plot(df_subset, gene_name, subset_config$description, protein_info, metadata_info)
 }
 
 cat("Plots generated successfully for gene:", gene_name, "\n")

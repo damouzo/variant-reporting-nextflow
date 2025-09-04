@@ -60,7 +60,7 @@ variant_table <- variant_table %>%
     LabelVarPlot = Existing_variation_annotation,
     LabelVarPlot = ifelse(
       LabelVarPlot == "-" | is.na(LabelVarPlot),
-      paste0(CHROM_variant, "_", POS_variant, "_", REF_variant, "/", ALT_variant),
+      paste0(CHROM_variant, "_", POS_variant), #, "_", REF_variant, "/", ALT_variant),
       LabelVarPlot
     )
   )

@@ -9,6 +9,7 @@ process plotQCsmallVar {
 
     input:
     tuple path(clean_table), val(gene_name), path(prot_file), path(exon_file)
+    path(part_metadata_file)
 
     // Save all PDFs generated
     output:
@@ -18,7 +19,7 @@ process plotQCsmallVar {
     script:
     """
     echo "Plotting QC for gene: ${gene_name}"
-    plotQCsmallVar.R ${clean_table} ${gene_name} ${prot_file} ${exon_file}
+    plotQCsmallVar.R ${clean_table} ${gene_name} ${prot_file} ${exon_file} ${part_metadata_file}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
