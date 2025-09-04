@@ -2152,8 +2152,8 @@ create_lollipop_plot <- function(df_data, gene_name, subset_label, protein_info,
            samples_vec = list(unique(unlist(strsplit(samples_all, ",")))),
            participants_vec = list(
              unique(na.omit(metadata_info$participant_id[match(samples_vec, metadata_info$plate_key)]))),
-           participants_ID = paste(participants_vec, collapse = ","),
-           participants_num = length(participants_vec)
+           participants_ID = paste(unique(participants_vec), collapse = ","),
+           participants_num = length(unique(participants_vec))
     ) %>%
     ungroup()  %>%
     select(-samples_vec, -participants_vec)
@@ -2163,16 +2163,20 @@ create_lollipop_plot <- function(df_data, gene_name, subset_label, protein_info,
   sample.gr$Consequence_annotation <- df_data$Consequence_annotation
   sample.gr$color <- setNames(pastel_colors, unique(sample.gr$Consequence_annotation))[sample.gr$Consequence_annotation]
   legends <- list(labels=unique(sample.gr$Consequence_annotation), fill=unique(sample.gr$color))
-  sample.gr$shape <- ifelse(grepl("^rs", names(sample.gr)), "circle", "diamond")
+  sample.gr$shape <- ifelse(grepl("^(rs|COSV)", names(sample.gr)), "circle", "diamond")
   
-  # Prepare for plotting
+  # Prepare labels for plotting
   sample.gr.rot <- sample.gr
-  sample.gr.rot$label.parameter.rot <- 45
+  sample.gr.rot$label.parameter.gp <- gpar(fontsize=7)
+  sample.gr.rot$label.parameter.label <- sub(",.*", "", names(sample.gr))
+  sample.gr.rot$label.parameter.label[which(sample.gr.rot$score < 2)] <- NA
+  #sample.gr.rot$label.parameter.rot <- 45
+  
   
   # Create filename and plot
   filename <- paste0(gene_name, "_Lollipop_", subset_label, ".pdf")
 
-  pdf(filename)
+  pdf(filename, height=9)
   lolliplot(sample.gr.rot, features, legend=legends, ylab="Num. of Participants",
             yaxis.gp = gpar(fontsize=15), xaxis.gp = gpar(fontsize=15))
   grid.text(paste0(subset_label, " Variants of ", gene_name), 
