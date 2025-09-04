@@ -52,8 +52,8 @@ workflow QC_SMALL_VARIANTS {
     emit:
     clean_tsv   = cleanFormatSmallVar.out.clean_tsv     // File TSV
     clean_rds   = cleanFormatSmallVar.out.clean_rds     // tuple(path(rds_file), val(gene_name))
-    partID      = params.enable_sql_queries ? extractSmallVarPartID.out.partID : Channel.empty()
-    partMet     = params.enable_sql_queries ? extractSmallVarPartID.out.partMet : Channel.empty()
+    partID      = extractSmallVarPartID.out.partID      // participant IDs .txt
+    partMet     = extractSmallVarPartID.out.partMet     // participant metadata .tsv
     plots       = plotQCsmallVar.out[0]                 // PDFs
     versions    = ch_versions
 }

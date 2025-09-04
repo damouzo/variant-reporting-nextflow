@@ -3,7 +3,6 @@
 process extractStructVarPartID {
     tag { gene_name }
     label 'r_process'
-    label 'sql_access'
 
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
 
@@ -15,9 +14,6 @@ process extractStructVarPartID {
         path("${gene_name}_structural_variants_participantID.txt"), emit: partID
         path("${gene_name}_structural_variants_participantMetadata.tsv"), emit: partMet
         path "versions.yml", emit: versions
-    
-    when: 
-        params.enable_sql_queries
 
     script:
     """
@@ -40,6 +36,19 @@ process extractStructVarPartID {
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         r-base: \$(R --version | head -n1 | sed 's/R version //; s/ .*//')
+    END_VERSIONS
+    """
+
+    stub:
+    """
+    echo "STUB MODE: Using mock data for ${gene_name}"
+    cp "${moduleDir}/mock_data/${gene_name}_structural_variants_participantID.txt" "${gene_name}_structural_variants_participantID.txt"     
+    cp "${moduleDir}/mock_data/${gene_name}_structural_variants_participantMetadata.tsv" "${gene_name}_structural_variants_participantMetadata.tsv"
+    echo "Mock files ready for ${gene_name}"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        r-base: \$(echo "4.3.3")
     END_VERSIONS
     """
 }

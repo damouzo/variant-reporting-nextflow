@@ -37,14 +37,4 @@ process cleanFormatStructVar {
         r-base: \$(R --version | head -n1 | sed 's/R version //; s/ .*//')
     END_VERSIONS
     """
-
-    stub:
-    """
-    touch ${gene_name}_structural_variants.rds 
-    touch ${gene_name}_structural_variants.tsv
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        r-base: 4.3.0
-    END_VERSIONS
-    """
 }
