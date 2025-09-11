@@ -1,0 +1,19 @@
+Bootstrap: docker
+From: ensemblorg/ensembl-vep:release_115.0
+
+%labels
+    Description "Singularity container for Ensembl VEP (release 115) with cache support"
+    Version "115.0"
+    Author "Daniel Mouzo"
+
+%environment
+    # Ensembl VEP is located in /opt/vep within the image
+    export PATH=/opt/vep:$PATH
+    export VEP_CACHE_DIR=/opt/vep_cache
+
+%post
+    # Create a directory for the cache (to be mounted externally)
+    mkdir -p /opt/vep_cache
+
+%runscript
+    exec vep "$@"
