@@ -7,10 +7,10 @@ if (length(args) != 4) {
   stop("script.R <clean_table> <gene_name> <prot_file> <exon_file>")
 }
 
-clean_table     <- args[1] # 
-gene_name       <- args[2] # "DHX34"
-prot_file       <- args[3] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\data\\reference\\Protein\\DHX34.gff"
-exon_file       <- args[4] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\data\\reference\\Exon\\DHX34.tsv"
+clean_table     <- args[1] # "C:/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/results/DDX41/DDX41_bci_patients_variants.rds"
+gene_name       <- args[2] # "DDX41"
+prot_file       <- args[3] # "C:/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/reference/Protein/DDX41.gff"
+exon_file       <- args[4] # "C:/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/reference/Exon/DDX41.tsv"
 
 # Message validation files
 cat("Validating input files for gene:", gene_name, "\n")
@@ -37,6 +37,8 @@ library(paletteer)
 library(grid)
 
 # Settings ----------------------------------------------------------------------
+set.seed(23)
+
 #box::use(./utils_plotLollipop[...])
 lolliplot <- function(SNP.gr, features=NULL, ranges=NULL,
                       type="circle",
@@ -2001,7 +2003,6 @@ lolliplot <- function(SNP.gr, features=NULL, ranges=NULL,
 }
 
 
-set.seed(23)
 
 # Palettete ---------------------------------------------------------------------
 my_pal <- c(paletteer_d("RColorBrewer::Set1"),paletteer_d("RColorBrewer::Set3"))
@@ -2021,13 +2022,92 @@ protein_info <- rtracklayer::import(prot_file)
 exon_info <- read_tsv(exon_file)
 
 
-# Visual Plots -----------------------------------------------------------------
-#########
-# SCRIPT
-pdf(paste0(gene_name, "_TEST.pdf"))
-plot(cars)
+# Filter Variants --------------------------------------------------------------
+# Canonical Variants with prot pos
+df_data <- variants_table %>%
+  filter(CANONICAL == "YES") %>%
+  filter(!is.na(Protein_position)) %>%
+  mutate(LabelVarPlot = ifelse(grepl("^(rs|COSV)", Existing_variation, ignore.case = TRUE), Existing_variation, Variant))
+  
+subset_label <- "Canonical"
+
+
+# Lollipop plot ----------------------------------------------------------------
+# Protein section ---------
+feature2plot <- c("Domain", "Motif", "Region", "Zinc finger")
+features_prot <- protein_info[protein_info$type %in% feature2plot, ]
+
+if(length(features_prot) == 0) {
+  cat("No protein features_prot available for Lollipop plot\n")
+  return()
+}
+
+# Prepare protein labels for features_prot
+features_prot$Note <- trimws(features_prot$Note)
+note_colors <- setNames(my_pal[1:length(unique(features_prot$Note))], unique(features_prot$Note))
+features_prot$fill <- note_colors[features_prot$Note]
+names(features_prot) <- features_prot$Note
+
+# Create variants GRanges
+prot.gr <- GRanges(seqnames = paste0(unique(seqnames(features_prot))), 
+                     ranges = IRanges(start = df_data$Protein_position, width = 1, 
+                                      names = df_data$LabelVarPlot))
+
+# Prepare variant properties
+prot.gr$node.label <- as.character(gsub("-.*", "", df_data$Patient_REF))
+prot.gr$node.label <- as.character(gsub("P", "", prot.gr$node.label))
+prot.gr$Consequence <- df_data$Consequence            
+prot.gr$color <- setNames(pastel_colors, unique(prot.gr$Consequence))[prot.gr$Consequence]
+legends_prot <- list(labels=unique(prot.gr$Consequence), fill=unique(prot.gr$color))
+prot.gr$shape <- ifelse(grepl("^(rs|COSV)", names(prot.gr)), "circle", "diamond")
+
+
+# Exon features --------------
+exon_info$Exon_Num <- paste0("Exon ", seq_len(nrow(exon_info)))
+features_exon <- GRanges(
+  seqnames = exon_info$Isoform, 
+  ranges   = IRanges(start = exon_info$ExonStart,
+                     end   = exon_info$ExonEnd,
+                     names = exon_info$Exon_Num
+  ))
+
+# Prepare protein labels for features_exon
+features_exon$Note <- trimws(exon_info$Exon_Num)
+note_colors <- setNames(my_pal[1:length(unique(features_exon$Note))], unique(features_exon$Note))
+features_exon$fill <- note_colors[features_exon$Note]
+
+# Create exon variants GRanges
+exon.gr <- GRanges(seqnames = paste0(unique(seqnames(features_exon))), 
+                   ranges = IRanges(start = as.numeric(gsub(".*:","",df_data$Location)), width = 1, 
+                                    names = df_data$LabelVarPlot))
+
+exon.gr$node.label <- as.character(gsub("-.*", "", df_data$Patient_REF))
+exon.gr$node.label <- as.character(gsub("P", "", exon.gr$node.label))
+exon.gr$Consequence <- df_data$Consequence            
+exon.gr$color <- setNames(pastel_colors, unique(exon.gr$Consequence))[exon.gr$Consequence]
+legends_exon <- list(labels=unique(exon.gr$Consequence), fill=unique(exon.gr$color))
+exon.gr$shape <- ifelse(grepl("^(rs|COSV)", names(exon.gr)), "circle", "diamond")
+
+
+
+# Create filename and plot
+filename <- paste0(gene_name, "_Lollipop_", subset_label, ".pdf")
+
+pdf(filename, width=9)
+# Protein 
+lolliplot(prot.gr, features_prot, legend=legends_prot, ylab="Participant IDs",
+          yaxis.gp = gpar(fontsize=12), xaxis.gp = gpar(fontsize=12))
+grid.text(paste0(subset_label, " Variants in Protein of ", gene_name), 
+          x=.5, y=.98, gp=gpar(cex=1.5, fontface="bold"))
+# Exon
+lolliplot(exon.gr, features_exon, legend=legends_exon, ylab="Participant IDs",
+          yaxis.gp = gpar(fontsize=12), xaxis.gp = gpar(fontsize=12))
+grid.text(paste0(subset_label, " Variants in Exon of ", gene_name), 
+          x=.5, y=.98, gp=gpar(cex=1.5, fontface="bold"))
 dev.off()
-########
+cat("Generated:", filename, "\n")
+
 
 
 cat("Plots generated successfully for gene:", gene_name, "\n")
+

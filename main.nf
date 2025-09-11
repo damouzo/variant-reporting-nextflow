@@ -64,8 +64,7 @@ workflow {
         bci_patients_var_ch,
         gene_list_ch,
         Channel.fromPath("${params.prot_dir}/*.gff"),
-        Channel.fromPath("${params.exon_dir}/*.tsv"),
-        params.vep_cache
+        Channel.fromPath("${params.exon_dir}/*.tsv")
     )
 
     workflow.onError = {

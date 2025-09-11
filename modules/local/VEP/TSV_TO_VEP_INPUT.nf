@@ -22,6 +22,11 @@ process TSV_TO_VEP_INPUT {
     # Read original data
     gene_name <- paste0("${gene_name}")
     df <- read_tsv("${bci_patients_var_file}")
+
+    # Check for duplicates in cDNA_Change_HGVS_c.
+    if (any(duplicated(df[, "cDNA_Change_HGVS_c."]))) {
+        stop("Error: Duplicated values in 'cDNA_Change_HGVS_c.'. Please ensure unique identifiers.")
+    }
     
     # Save original data for later merging
     write_tsv(df, "${gene_name}_original_data.tsv")
@@ -31,12 +36,9 @@ process TSV_TO_VEP_INPUT {
         filter(!is.na(cDNA_Change_HGVS_c.) & !is.na(Transcript)) %>%
         filter(cDNA_Change_HGVS_c. != "NA" & Transcript != "NA") %>%
         mutate(
-            # Create unique identifier
-            variant_id = paste(Patient_REF, row_number(), sep="_"),
-            # Clean transcript (remove version if exists)
-            transcript_clean = sub("\\\\..*", "", Transcript),
-            # Format for VEP: transcript:hgvs_c
-            vep_input_line = paste0(transcript_clean, ":", cDNA_Change_HGVS_c.)
+            variant_id = paste(Patient_REF, row_number(), sep="_"), # Create unique identifier
+            transcript_clean = sub("\\\\..*", "", Transcript), # Clean transcript (remove version if exists)
+            vep_input_line = paste0(transcript_clean, ":", cDNA_Change_HGVS_c.) # Format for VEP: transcript:hgvs_c
         ) %>%
         select(variant_id, vep_input_line)
     

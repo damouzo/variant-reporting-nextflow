@@ -12,7 +12,6 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     gene_list_ch            // channel: list of genes
     prot_files_ch           // channel: protein annotation files
     exon_files_ch           // channel: exon annotation files
-    vep_cache               // path: VEP cache directory 
 
     main:
     // Create versions channel
@@ -29,8 +28,7 @@ workflow QC_BCI_PATIENTS_VARIANTS {
 
     // Run VEP annotation
     VEP_ANNOTATE_TABULAR(
-        TSV_TO_VEP_INPUT.out.vep_input,
-        vep_cache,
+        TSV_TO_VEP_INPUT.out.vep_input
     )
 
     // Merge VEP annotations with original data
