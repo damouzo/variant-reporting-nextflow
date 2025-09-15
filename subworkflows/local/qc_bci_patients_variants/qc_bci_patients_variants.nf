@@ -27,9 +27,7 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     TSV_TO_VEP_INPUT(convert_input_ch)
 
     // Run VEP annotation
-    VEP_ANNOTATE_TABULAR(
-        TSV_TO_VEP_INPUT.out.vep_input
-    )
+    VEP_ANNOTATE_TABULAR(TSV_TO_VEP_INPUT.out.vep_input)
 
     // Merge VEP annotations with original data
     merge_input_ch = VEP_ANNOTATE_TABULAR.out.vep_output

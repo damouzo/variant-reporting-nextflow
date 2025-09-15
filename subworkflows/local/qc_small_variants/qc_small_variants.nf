@@ -3,6 +3,7 @@
 include { cleanFormatSmallVar } from '../../../modules/local/R/smallVariants/cleanFormatSmallVar.nf'
 include { extractSmallVarPartID } from '../../../modules/local/R/smallVariants/extractSmallVarPartID.nf'
 include { plotQCsmallVar } from '../../../modules/local/R/smallVariants/plotQCsmallVar.nf'
+include { filterSmallVar } from '../../../modules/local/R/smallVariants/filterSmallVar.nf'
 
 
 workflow QC_SMALL_VARIANTS {
@@ -43,17 +44,25 @@ workflow QC_SMALL_VARIANTS {
     // RUN plotQCsmallVar
     plotQCsmallVar(plot_input_ch, extractSmallVarPartID.out.partMet)
             // out.plots: path(plot_file)
+    
+    // RUN filterSmallVar
+    filterSmallVar(cleanFormatSmallVar.out.clean_rds)
+            // out.filtered_clean_tsv: path(filtered_tsv_file)
+            // out.filtered_clean_rds: tuple(path(filtered_rds_file), val(gene_name))
 
     // Collect versions
     ch_versions = ch_versions.mix(cleanFormatSmallVar.out.versions)
     ch_versions = ch_versions.mix(extractSmallVarPartID.out.versions)
     ch_versions = ch_versions.mix(plotQCsmallVar.out.versions)
+    ch_versions = ch_versions.mix(filterSmallVar.out.versions)
 
     emit:
-    clean_tsv   = cleanFormatSmallVar.out.clean_tsv     // File TSV
-    clean_rds   = cleanFormatSmallVar.out.clean_rds     // tuple(path(rds_file), val(gene_name))
-    partID      = extractSmallVarPartID.out.partID      // participant IDs .txt
-    partMet     = extractSmallVarPartID.out.partMet     // participant metadata .tsv
-    plots       = plotQCsmallVar.out[0]                 // PDFs
-    versions    = ch_versions
+    clean_tsv           = cleanFormatSmallVar.out.clean_tsv     // File TSV
+    clean_rds           = cleanFormatSmallVar.out.clean_rds     // tuple(path(rds_file), val(gene_name))
+    filtered_clean_tsv  = filterSmallVar.out.filtered_clean_tsv // File TSV
+    filtered_clean_rds  = filterSmallVar.out.filtered_clean_rds // tuple(path(rds_file), val(gene_name))
+    partID              = extractSmallVarPartID.out.partID      // participant IDs .txt
+    partMet             = extractSmallVarPartID.out.partMet     // participant metadata .tsv
+    plots               = plotQCsmallVar.out[0]                 // PDFs
+    versions            = ch_versions
 }
