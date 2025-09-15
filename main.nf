@@ -64,7 +64,8 @@ workflow {
         bci_patients_var_ch,
         gene_list_ch,
         Channel.fromPath("${params.prot_dir}/*.gff"),
-        Channel.fromPath("${params.exon_dir}/*.tsv")
+        Channel.fromPath("${params.exon_dir}/*.tsv"),
+        QC_SMALL_VARIANTS.out.clean_rds
     )
 
     workflow.onError = {

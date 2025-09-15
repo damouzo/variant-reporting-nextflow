@@ -3,6 +3,7 @@
 include { TSV_TO_VEP_INPUT } from '../../../modules/local/VEP/TSV_TO_VEP_INPUT.nf'
 include { VEP_ANNOTATE_TABULAR } from '../../../modules/local/VEP/VEP_ANNOTATE_TABULAR.nf'
 include { cleanFormatBciPatientsVar } from '../../../modules/local/R/bciPatientsVariants/cleanFormatBciPatientsVar.nf'
+include { compareBCIwithGEvar } from '../../../modules/local/R/bciPatientsVariants/compareBCIwithGEvar.nf'
 include { plotQCBciPatientsVar } from '../../../modules/local/R/bciPatientsVariants/plotQCBciPatientsVar.nf'
 
 
@@ -12,6 +13,7 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     gene_list_ch            // channel: list of genes
     prot_files_ch           // channel: protein annotation files
     exon_files_ch           // channel: exon annotation files
+    clean_variants_ch       // channel: GE small variants from SmallVar subworkflow
 
     main:
     // Create versions channel
@@ -38,6 +40,19 @@ workflow QC_BCI_PATIENTS_VARIANTS {
             // out.clean_tsv: path(tsv_file) 
             // out.clean_rds: path(rds_file)
 
+    // Combine BCI clean data with clean variants from the first subworkflow
+    comparison_input_ch = cleanFormatBciPatientsVar.out.clean_rds
+        .combine(clean_variants_ch)
+        .filter { bci_rds, bci_gene, ge_rds, ge_gene -> 
+            bci_gene == ge_gene 
+        }
+        .map { bci_rds, bci_gene, ge_rds, ge_gene -> 
+            tuple(bci_rds, ge_rds, bci_gene) 
+        }
+
+    // RUN comparison BCI vs GE
+    compareBCIwithGEvar(comparison_input_ch)
+
     // Prepare input for protein and exon files
     plot_input_ch = cleanFormatBciPatientsVar.out.clean_rds
         .combine(prot_files_ch)
@@ -54,11 +69,14 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     ch_versions = ch_versions.mix(TSV_TO_VEP_INPUT.out.versions)
     ch_versions = ch_versions.mix(VEP_ANNOTATE_TABULAR.out.versions)
     ch_versions = ch_versions.mix(cleanFormatBciPatientsVar.out.versions)
+    ch_versions = ch_versions.mix(compareBCIwithGEvar.out.versions)
     ch_versions = ch_versions.mix(plotQCBciPatientsVar.out.versions)
 
     emit:
-    clean_tsv   = cleanFormatBciPatientsVar.out.clean_tsv     // File TSV
-    clean_rds   = cleanFormatBciPatientsVar.out.clean_rds     // path(rds_file)
-    plots       = plotQCBciPatientsVar.out.plots              // PDFs
-    versions    = ch_versions
+    clean_tsv           = cleanFormatBciPatientsVar.out.clean_tsv     // File TSV
+    clean_rds           = cleanFormatBciPatientsVar.out.clean_rds     // path(rds_file)
+    plots               = plotQCBciPatientsVar.out.plots              // PDFs
+    comparison_tsv      = compareBCIwithGEvar.out.BciVsGe_tsv         // File TSV
+    comparison_rds      = compareBCIwithGEvar.out.BciVsGe_rds         // path(rds_file)
+    versions            = ch_versions
 }
