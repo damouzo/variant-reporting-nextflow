@@ -19,27 +19,51 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     // Create versions channel
     ch_versions = Channel.empty()
 
-    // Prepare input for conversion to VEP format
-    convert_input_ch = bci_patients_var_ch
-        .combine(gene_list_ch)
-        .filter { file, gene -> file.name.contains(gene) }
-        .map { file, gene -> tuple(file, gene) }
+    
+    // Conditional logic based on environment capabilities
+    if (params.enable_vep_annotation) {
+        // VEP annotation path (for personal_pc and hpc_apocrita)
+        log.info "Using VEP annotation workflow for BCI patients variants"
+        
+        // Prepare input for conversion to VEP format
+        convert_input_ch = bci_patients_var_ch
+            .combine(gene_list_ch)
+            .filter { file, gene -> file.name.contains(gene) }
+            .map { file, gene -> tuple(file, gene) }
 
-    // Convert tabular data to VEP input format
-    TSV_TO_VEP_INPUT(convert_input_ch)
+        // Convert tabular data to VEP input format
+        TSV_TO_VEP_INPUT(convert_input_ch)
 
-    // Run VEP annotation
-    VEP_ANNOTATE_TABULAR(TSV_TO_VEP_INPUT.out.vep_input)
+        // Run VEP annotation
+        VEP_ANNOTATE_TABULAR(TSV_TO_VEP_INPUT.out.vep_input)
 
-    // Merge VEP annotations with original data
-    merge_input_ch = VEP_ANNOTATE_TABULAR.out.vep_output
-        .join(TSV_TO_VEP_INPUT.out.original_data)
+        // Merge VEP annotations with original data
+        merge_input_ch = VEP_ANNOTATE_TABULAR.out.vep_output
+            .join(TSV_TO_VEP_INPUT.out.original_data)
 
-    // RUN cleanFormatBciPatients
-    cleanFormatBciPatientsVar(merge_input_ch)
-            // out.clean_tsv: path(tsv_file) 
-            // out.clean_rds: path(rds_file)
+        // Clean and format BCI patients variants
+        cleanFormatBciPatientsVar(merge_input_ch)
 
+        // Collect VEP versions
+        ch_versions = ch_versions.mix(TSV_TO_VEP_INPUT.out.versions)
+        ch_versions = ch_versions.mix(VEP_ANNOTATE_TABULAR.out.versions)
+
+    } else {
+        // Pre-annotated data path (for ge_pc)
+        log.info "Using pre-annotated BCI patients variants from ${params.bci_annotated_dir}"
+        
+        // Use pre-annotated files
+        pre_annotated_ch = Channel
+            .fromPath("${params.bci_annotated_dir}/*.tsv")
+            .combine(gene_list_ch)
+            .filter { file, gene -> file.name.contains(gene) }
+            .map { file, gene -> tuple(gene, file, file) // gene, vep_output, original_data
+            }
+
+        // Clean and format BCI patients variants (same process, different input)
+        cleanFormatBciPatientsVar(pre_annotated_ch)
+    }
+    
     // Combine BCI clean data with clean variants from the first subworkflow
     comparison_input_ch = cleanFormatBciPatientsVar.out.clean_rds
         .combine(clean_variants_ch)
@@ -53,16 +77,8 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     // RUN comparison BCI vs GE
     compareBCIwithGEvar(comparison_input_ch)
 
-    // Prepare input for protein and exon files
-    plot_input_ch = cleanFormatBciPatientsVar.out.clean_rds
-        .combine(prot_files_ch)
-        .filter { _clean_table, gene_name, gff_file -> gff_file.name.contains(gene_name) }
-        .combine(exon_files_ch)
-        .filter { _clean_table, gene_name, _gff_file, exon_file -> exon_file.name.contains(gene_name) }
-        .map { clean_table, gene_name, gff_file, exon_file -> tuple(clean_table, gene_name, gff_file, exon_file) }
-    
-    // RUN plotQCBciPatients
-    plotQCBciPatientsVar(plot_input_ch)
+    // RUN plotting QC results
+    plotQCBciPatientsVar(cleanFormatBciPatientsVar.out.clean_rds, prot_files_ch, exon_files_ch)
             // out.plots: path(plot_file)
 
     // Collect versions

@@ -10,8 +10,8 @@ process compareBCIwithGEvar {
         tuple path(bci_SmallVar_rds), path(ge_SmallVar_rds), val(gene_name)
 
     output:
-        tuple val(gene_name), path("${gene_name}_bci_vs_ge_comparison.tsv"), emit: BciVsGe_tsv
-        tuple val(gene_name), path("${gene_name}_bci_vs_ge_comparison.rds"), emit: BciVsGe_rds
+        tuple val(gene_name), path("${gene_name}_compared_bci_ge_small_variants.tsv"), emit: BciVsGe_tsv
+        tuple val(gene_name), path("${gene_name}_compared_bci_ge_small_variants.rds"), emit: BciVsGe_rds
         path "versions.yml", emit: versions
 
     script:
@@ -20,12 +20,12 @@ process compareBCIwithGEvar {
     compareBCIwithGEvar.R ${bci_SmallVar_rds} ${ge_SmallVar_rds} ${gene_name}
 
     # Check output files created
-    if [ ! -f "${gene_name}_bci_vs_ge_comparison.tsv" ]; then
+    if [ ! -f "${gene_name}_compared_bci_ge_small_variants.tsv" ]; then
         echo "Error: TSV output file was not created"
         exit 1
     fi
 
-    if [ ! -f "${gene_name}_bci_vs_ge_comparison.rds" ]; then
+    if [ ! -f "${gene_name}_compared_bci_ge_small_variants.rds" ]; then
         echo "Error: RDS output file was not created"
         exit 1
     fi

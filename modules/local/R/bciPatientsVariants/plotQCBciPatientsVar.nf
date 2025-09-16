@@ -8,7 +8,9 @@ process plotQCBciPatientsVar {
     publishDir "${params.results_dir}/${gene_name}/plots/bci_patients_variants", mode: 'copy'
 
     input:
-    tuple path(clean_table), val(gene_name), path(prot_file), path(exon_file)
+    tuple path(bci_rds), val(gene_name) 
+    path(prot_file)
+    path(exon_file)
 
     // Save all PDFs generated
     output:
@@ -18,7 +20,7 @@ process plotQCBciPatientsVar {
     script:
     """
     echo "Plotting BCI patients variants QC for gene: ${gene_name}"
-    plotQCBciPatientsVar.R ${clean_table} ${gene_name} ${prot_file} ${exon_file}
+    plotQCBciPatientsVar.R ${bci_rds} ${gene_name} ${prot_file} ${exon_file}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

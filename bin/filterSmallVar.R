@@ -15,7 +15,7 @@ set.seed(23)
 
 
 # Load gene annotated variant file ---------------------------------------------
-variant_table <- read_tsv(clean_smallvar_file)
+variant_table <- readRDS(clean_smallvar_file)
 
 #####################
 # Script to filter variants based on specific criteria
