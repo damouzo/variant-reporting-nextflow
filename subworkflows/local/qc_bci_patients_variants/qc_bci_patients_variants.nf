@@ -7,6 +7,7 @@ include { compareBCIwithGEvar } from '../../../modules/local/R/bciPatientsVarian
 include { plotQCBciPatientsVar } from '../../../modules/local/R/bciPatientsVariants/plotQCBciPatientsVar.nf'
 
 
+
 workflow QC_BCI_PATIENTS_VARIANTS {
     take:
     bci_patients_var_ch     // channel: BCI patients variant files
@@ -53,12 +54,25 @@ workflow QC_BCI_PATIENTS_VARIANTS {
         log.info "Using pre-annotated BCI patients variants from ${params.bci_annotated_dir}"
         
         // Use pre-annotated files
-        pre_annotated_ch = Channel
-            .fromPath("${params.bci_annotated_dir}/*.tsv")
+        annotated_files_ch = Channel
+            .fromPath("${params.bci_annotated_dir}/*_vep_output.txt")
             .combine(gene_list_ch)
             .filter { file, gene -> file.name.contains(gene) }
-            .map { file, gene -> tuple(gene, file, file) // gene, vep_output, original_data
-            }
+            .map { file, gene -> tuple(gene, file) }
+
+        // Create channels for original files  
+        original_files_ch = Channel
+            .fromPath("${params.bci_annotated_dir}/*_patients_var_data.tsv")
+            .combine(gene_list_ch)
+            .filter { file, gene -> file.name.contains(gene) }
+            .map { file, gene -> tuple(gene, file) }
+
+        // Combine annotated and original files by gene
+        pre_annotated_ch = annotated_files_ch
+            .join(original_files_ch)  // Une por gene: [gene, annotated_file, original_file]
+
+        // Debug: ver qué archivos están llegando
+        pre_annotated_ch.view { "DEBUG pre_annotated_ch: gene=${it[0]}, annotated=${it[1].name}, original=${it[2].name}" }      
 
         // Clean and format BCI patients variants (same process, different input)
         cleanFormatBciPatientsVar(pre_annotated_ch)
@@ -67,10 +81,10 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     // Combine BCI clean data with clean variants from the first subworkflow
     comparison_input_ch = cleanFormatBciPatientsVar.out.clean_rds
         .combine(clean_variants_ch)
-        .filter { bci_rds, bci_gene, ge_rds, ge_gene -> 
+        .filter { _bci_rds, bci_gene, _ge_rds, ge_gene -> 
             bci_gene == ge_gene 
         }
-        .map { bci_rds, bci_gene, ge_rds, ge_gene -> 
+        .map { bci_rds, bci_gene, ge_rds, _ge_gene -> 
             tuple(bci_rds, ge_rds, bci_gene) 
         }
 
@@ -82,8 +96,6 @@ workflow QC_BCI_PATIENTS_VARIANTS {
             // out.plots: path(plot_file)
 
     // Collect versions
-    ch_versions = ch_versions.mix(TSV_TO_VEP_INPUT.out.versions)
-    ch_versions = ch_versions.mix(VEP_ANNOTATE_TABULAR.out.versions)
     ch_versions = ch_versions.mix(cleanFormatBciPatientsVar.out.versions)
     ch_versions = ch_versions.mix(compareBCIwithGEvar.out.versions)
     ch_versions = ch_versions.mix(plotQCBciPatientsVar.out.versions)

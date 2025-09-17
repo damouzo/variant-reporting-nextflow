@@ -3,8 +3,8 @@
 
 # Arguments --------------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-vep_annot_file   <- args[1]  # "/mnt/c/scratch/2e/56b66f4d4935c698b3dac8bc29f26b/DDX41_vep_output.txt"
-gene_name        <- args[2]  # "DDX41"
+gene_name        <- args[1]  # "DDX41"
+vep_annot_file   <- args[2]  # "/mnt/c/scratch/2e/56b66f4d4935c698b3dac8bc29f26b/DDX41_vep_output.txt"
 variant_file     <- args[3]  # "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/raw_data/BCI_patients/250829_DDX41_patients_var_data.tsv"
 
 # Libraries  -------------------------------------------------------------------

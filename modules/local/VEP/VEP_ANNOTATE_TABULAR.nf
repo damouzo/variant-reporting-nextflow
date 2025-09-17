@@ -2,13 +2,13 @@ process VEP_ANNOTATE_TABULAR {
     tag "${gene_name}"
     label 'vep_process'
 
-    publishDir "${params.results_dir}/${gene_name}", mode: 'copy', pattern: "*_bci_patients_vep_stats.html"
+    publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
 
     input:
     tuple val(gene_name), path(vep_input)
 
     output:
-    tuple val(gene_name), path("${gene_name}_vep_output.txt"), emit: vep_output
+    tuple val(gene_name), path("${gene_name}_bci_patients_vep_output.txt"), emit: vep_output
     path "${gene_name}_bci_patients_vep_stats.html", emit: report
     path "versions.yml", emit: versions
 
@@ -16,7 +16,7 @@ process VEP_ANNOTATE_TABULAR {
     """
     vep \
         --input_file ${vep_input} \
-        --output_file ${gene_name}_vep_output.txt \
+        --output_file ${gene_name}_bci_patients_vep_output.txt \
         --species homo_sapiens \
         --assembly GRCh38 \
         --database \
@@ -30,7 +30,7 @@ process VEP_ANNOTATE_TABULAR {
         --force_overwrite
 
     # Verificar que se generó el output
-    if [ ! -f "${gene_name}_vep_output.txt" ]; then
+    if [ ! -f "${gene_name}_bci_patients_vep_output.txt" ]; then
         echo "Error: VEP output file was not created"
         exit 1
     fi

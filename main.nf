@@ -5,6 +5,7 @@ include { QC_SMALL_VARIANTS  } from './subworkflows/local/qc_small_variants/qc_s
 include { QC_STRUCT_VARIANTS } from './subworkflows/local/qc_struct_variants/qc_struct_variants.nf'
 include { QC_BCI_PATIENTS_VARIANTS } from './subworkflows/local/qc_bci_patients_variants/qc_bci_patients_variants.nf'
 
+
 workflow {
         // Input validation
     if (!file(params.gene_list).exists()) {error "Gene list not found: ${params.gene_list}"}
