@@ -17,6 +17,7 @@ results/
 .RData
 .Ruserdata
 .lintr
+.README_VAULT.md
 
 # Container
 conf/containers/*.sif

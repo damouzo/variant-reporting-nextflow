@@ -66,7 +66,8 @@ workflow {
         gene_list_ch,
         Channel.fromPath("${params.prot_dir}/*.gff"),
         Channel.fromPath("${params.exon_dir}/*.tsv"),
-        QC_SMALL_VARIANTS.out.clean_rds
+        QC_SMALL_VARIANTS.out.clean_rds,
+        QC_SMALL_VARIANTS.out.partMet
     )
 
     workflow.onError = {

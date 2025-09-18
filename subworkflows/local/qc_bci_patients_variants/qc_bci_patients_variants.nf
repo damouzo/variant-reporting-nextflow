@@ -5,6 +5,7 @@ include { VEP_ANNOTATE_TABULAR } from '../../../modules/local/VEP/VEP_ANNOTATE_T
 include { cleanFormatBciPatientsVar } from '../../../modules/local/R/bciPatientsVariants/cleanFormatBciPatientsVar.nf'
 include { compareBCIwithGEvar } from '../../../modules/local/R/bciPatientsVariants/compareBCIwithGEvar.nf'
 include { plotQCBciPatientsVar } from '../../../modules/local/R/bciPatientsVariants/plotQCBciPatientsVar.nf'
+include { plotMetadataBCIvsGE } from '../../../modules/local/R/bciPatientsVariants/plotMetadataBCIvsGE.nf'
 
 
 
@@ -15,6 +16,7 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     prot_files_ch           // channel: protein annotation files
     exon_files_ch           // channel: exon annotation files
     clean_variants_ch       // channel: GE small variants from SmallVar subworkflow
+    part_metadata_ch        // channel: participant metadata from SmallVar subworkflow
 
     main:
     // Create versions channel
@@ -35,14 +37,14 @@ workflow QC_BCI_PATIENTS_VARIANTS {
         // Convert tabular data to VEP input format
         TSV_TO_VEP_INPUT(convert_input_ch)
 
-        // Run VEP annotation
+        // RUN VEP annotation
         VEP_ANNOTATE_TABULAR(TSV_TO_VEP_INPUT.out.vep_input)
 
         // Merge VEP annotations with original data
         merge_input_ch = VEP_ANNOTATE_TABULAR.out.vep_output
             .join(TSV_TO_VEP_INPUT.out.original_data)
 
-        // Clean and format BCI patients variants
+        // RUN Clean and format BCI patients variants
         cleanFormatBciPatientsVar(merge_input_ch)
 
         // Collect VEP versions
@@ -91,6 +93,20 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     // RUN comparison BCI vs GE
     compareBCIwithGEvar(comparison_input_ch)
 
+    // RUN metadata comparison plots (always runs, uses stub in personal_pc)
+    // Prepare input for metadata plotting: combine comparison data, BCI clean data, and participant metadata
+    metadata_plot_input_ch = compareBCIwithGEvar.out.BciVsGe_rds
+        .join(cleanFormatBciPatientsVar.out.clean_rds, by: 0)  // Join by gene_name
+        .combine(part_metadata_ch)
+        .filter { gene_name, _comparison_rds, _bci_rds, part_metadata -> 
+            part_metadata.name.contains(gene_name) 
+        }
+        .map { gene_name, comparison_rds, bci_rds, part_metadata -> 
+            tuple(gene_name, comparison_rds, bci_rds, part_metadata) 
+        }
+
+    plotMetadataBCIvsGE(metadata_plot_input_ch)
+
     // RUN plotting QC results
     plotQCBciPatientsVar(cleanFormatBciPatientsVar.out.clean_rds, prot_files_ch, exon_files_ch)
             // out.plots: path(plot_file)
@@ -98,6 +114,7 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     // Collect versions
     ch_versions = ch_versions.mix(cleanFormatBciPatientsVar.out.versions)
     ch_versions = ch_versions.mix(compareBCIwithGEvar.out.versions)
+    ch_versions = ch_versions.mix(plotMetadataBCIvsGE.out.versions) 
     ch_versions = ch_versions.mix(plotQCBciPatientsVar.out.versions)
 
     emit:
@@ -106,5 +123,6 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     plots               = plotQCBciPatientsVar.out.plots              // PDFs
     comparison_tsv      = compareBCIwithGEvar.out.BciVsGe_tsv         // File TSV
     comparison_rds      = compareBCIwithGEvar.out.BciVsGe_rds         // path(rds_file)
+    metadata_plots      = plotMetadataBCIvsGE.out.plots               // Metadata comparison PDFs
     versions            = ch_versions
 }
