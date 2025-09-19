@@ -73,9 +73,6 @@ workflow QC_BCI_PATIENTS_VARIANTS {
         pre_annotated_ch = annotated_files_ch
             .join(original_files_ch)  // Une por gene: [gene, annotated_file, original_file]
 
-        // Debug: ver qué archivos están llegando
-        pre_annotated_ch.view { "DEBUG pre_annotated_ch: gene=${it[0]}, annotated=${it[1].name}, original=${it[2].name}" }      
-
         // Clean and format BCI patients variants (same process, different input)
         cleanFormatBciPatientsVar(pre_annotated_ch)
     }
@@ -93,19 +90,15 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     // RUN comparison BCI vs GE
     compareBCIwithGEvar(comparison_input_ch)
 
-    // RUN metadata comparison plots (always runs, uses stub in personal_pc)
-    // Prepare input for metadata plotting: combine comparison data, BCI clean data, and participant metadata
+    // Prepare input for metadata plotting
     metadata_plot_input_ch = compareBCIwithGEvar.out.BciVsGe_rds
-        .join(cleanFormatBciPatientsVar.out.clean_rds, by: 0)  // Join by gene_name
-        .combine(part_metadata_ch)
-        .filter { gene_name, _comparison_rds, _bci_rds, part_metadata -> 
-            part_metadata.name.contains(gene_name) 
-        }
-        .map { gene_name, comparison_rds, bci_rds, part_metadata -> 
-            tuple(gene_name, comparison_rds, bci_rds, part_metadata) 
-        }
+        .join( cleanFormatBciPatientsVar.out.clean_rds.map { rds_file, gene_name -> [gene_name, rds_file] })
+        .join( part_metadata_ch.map { metadata_file -> [metadata_file.name.split('_')[0], metadata_file] })
 
+    // RUN metadata comparison plots
     plotMetadataBCIvsGE(metadata_plot_input_ch)
+        // out.plots: path(plot_file)
+        // out.csv: path(csv_file)
 
     // RUN plotting QC results
     plotQCBciPatientsVar(cleanFormatBciPatientsVar.out.clean_rds, prot_files_ch, exon_files_ch)

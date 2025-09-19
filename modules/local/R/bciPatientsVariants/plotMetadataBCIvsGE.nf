@@ -10,7 +10,8 @@ process plotMetadataBCIvsGE {
     tuple val(gene_name), path(comparison_rds), path(bci_clean_rds), path(part_metadata_file)
 
     output:
-    path "*.pdf", emit: plots
+    path "${gene_name}_*.pdf", emit: plots
+    path "${gene_name}_*.csv", emit: csv    
     path "versions.yml", emit: versions
 
     script:
@@ -20,8 +21,8 @@ process plotMetadataBCIvsGE {
     echo "  Comparison data: ${comparison_rds}"
     echo "  BCI clean data: ${bci_clean_rds}"
     echo "  Participant metadata: ${part_metadata_file}"
-    
-    plotMetadataBCIvsGE.R ${comparison_rds} ${bci_clean_rds} ${part_metadata_file} ${gene_name}
+
+    plotMetadataBCIvsGE.R ${gene_name} ${comparison_rds} ${bci_clean_rds} ${part_metadata_file}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -31,21 +32,17 @@ process plotMetadataBCIvsGE {
 
     stub:
     """
-    echo "STUB MODE: Creating mock plot for ${gene_name}"
-    
+    echo "STUB MODE: Creating mock files for ${gene_name}"
+
+    # Create a mock CSV file
+    echo "mock example when stub version" > ${gene_name}_mock_csv.csv
+
     # Create a simple mock PDF
-    echo "%PDF-1.4" > ${gene_name}_metadata_mockplot.pdf
-    echo "1 0 obj" >> ${gene_name}_metadata_mockplot.pdf
-    echo "<<" >> ${gene_name}_metadata_mockplot.pdf
-    echo "/Type /Catalog" >> ${gene_name}_metadata_mockplot.pdf
-    echo "/Pages 2 0 R" >> ${gene_name}_metadata_mockplot.pdf
-    echo ">>" >> ${gene_name}_metadata_mockplot.pdf
-    echo "endobj" >> ${gene_name}_metadata_mockplot.pdf
-    echo "Mock metadata plot created for ${gene_name}"
+    touch ${gene_name}_metadata_mockplot.pdf
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        r-base: \$(echo "4.3.3")
+        r-base: "4.3.3"
     END_VERSIONS
     """
 }

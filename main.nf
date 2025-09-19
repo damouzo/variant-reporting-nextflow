@@ -54,13 +54,13 @@ workflow {
         Channel.fromPath("${params.exon_dir}/*.tsv")
     )
 
-    // Run Structural Variants QC workflow
+    // RUN Structural Variants QC workflow
     QC_STRUCT_VARIANTS(
         struct_var_ch,
         gene_list_ch
     )
 
-    // Run BC samples QC workflow
+    // RUN BCI samples QC workflow
     QC_BCI_PATIENTS_VARIANTS(
         bci_patients_var_ch,
         gene_list_ch,

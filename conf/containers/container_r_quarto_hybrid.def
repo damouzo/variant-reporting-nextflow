@@ -1,0 +1,121 @@
+Bootstrap: docker
+From: continuumio/miniconda3:latest
+
+%labels
+    Author Daniel
+    Description "Hybrid Singularity container with R 4.3.3, Quarto, tidyverse, circlize, paletteer, Bioconductor packages, and reporting tools"
+
+%environment
+    # Activate conda environment by default
+    export PATH=/opt/conda/envs/r_env/bin:$PATH
+
+%post
+    # Update system packages first
+    apt-get update && apt-get install -y --no-install-recommends \
+        wget \
+        curl \
+        ca-certificates \
+        libxml2-dev \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        libgit2-dev \
+        libfontconfig1-dev \
+        pandoc \
+        && rm -rf /var/lib/apt/lists/*
+
+    # Update conda base and install mamba
+    conda install -y mamba -n base -c conda-forge
+
+    # Create R 4.3.3 environment with all your original packages + reporting packages
+    mamba create -y -n r_env -c conda-forge -c bioconda \
+        r-base=4.3.3 \
+        r-essentials \
+        r-tidyverse \
+        r-circlize \
+        r-paletteer \
+        bioconductor-rtracklayer \
+        bioconductor-genomicranges \
+        bioconductor-trackviewer \
+        r-knitr \
+        r-rmarkdown \
+        r-kableextra \
+        r-dt \
+        r-plotly \
+        r-htmlwidgets \
+        r-jsonlite \
+        r-gt \
+        r-patchwork \
+        r-naniar \
+        r-summarytools \
+        r-pheatmap \
+        r-ggrepel \
+        r-viridis \
+        r-rcolorbrewer
+
+    # Activate environment and install additional packages from CRAN if needed
+    /opt/conda/envs/r_env/bin/R -e "
+
+    required_packages <- c('knitr', 'rmarkdown', 'kableExtra', 'DT', 'plotly', 
+                          'htmlwidgets', 'jsonlite', 'gt', 'pheatmap', 'ggrepel')
+    
+    missing_packages <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]
+    
+    if(length(missing_packages) > 0) {
+        install.packages(missing_packages, repos = 'https://cran.rstudio.com/', dependencies = TRUE)
+    }
+    
+    cat('R packages installation completed\n')
+    "
+
+    # Install Quarto CLI from official source
+    wget -qO- https://github.com/quarto-dev/quarto-cli/releases/download/v1.4.550/quarto-1.4.550-linux-amd64.deb -O quarto.deb
+    dpkg -i quarto.deb || apt-get install -f -y
+    rm quarto.deb
+
+    # Verify Quarto installation
+    quarto --version
+
+    # LaTeX for PDF generation (comentado para reducir tamaño, descomenta si necesitas PDF)
+    apt-get update && apt-get install -y --no-install-recommends \
+        texlive-latex-base texlive-latex-recommended \
+        texlive-latex-extra texlive-fonts-recommended \
+        && rm -rf /var/lib/apt/lists/*
+
+    # Clean up conda cache to reduce size
+    conda clean -afy
+
+    # Final verification
+    echo "Container build completed!"
+    echo "R version: $(/opt/conda/envs/r_env/bin/R --version | head -1)"
+    echo "Quarto version: $(quarto --version)"
+
+%runscript
+    # Execute any command passed as arguments (flexible for Nextflow)
+    exec "$@"
+
+%apprun r
+    # Direct R access
+    exec /opt/conda/envs/r_env/bin/R --no-save "$@"
+
+%apprun rscript
+    # Rscript access
+    exec /opt/conda/envs/r_env/bin/Rscript "$@"
+
+%apprun quarto
+    # Direct Quarto access
+    exec quarto "$@"
+
+%help
+    This container includes:
+    - R 4.3.3 with tidyverse, circlize, paletteer, Bioconductor packages
+    - Quarto for document rendering
+    - Reporting packages: knitr, kableExtra, DT, plotly, gt
+    - All your original R packages for compatibility
+    
+    Usage examples:
+    singularity run container.sif Rscript script.R
+    singularity run container.sif quarto render document.qmd
+    singularity run --app r container.sif
+    singularity run --app quarto container.sif render doc.qmd
+
+## sudo singularity build container_r_quarto_hybrid.sif container_r_quarto_hybrid.def
