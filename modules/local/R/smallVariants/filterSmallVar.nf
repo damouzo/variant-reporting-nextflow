@@ -12,6 +12,7 @@ process filterSmallVar {
     output:
         path("${gene_name}_small_variants_filtered.tsv"), emit: filtered_clean_tsv
         tuple path("${gene_name}_small_variants_filtered.rds"), val(gene_name), emit: filtered_clean_rds
+        path("${gene_name}_small_variants_filtered_stats.csv"), emit: stats_csv
         path "versions.yml", emit: versions
 
     script:
@@ -27,6 +28,11 @@ process filterSmallVar {
 
     if [ ! -f "${gene_name}_small_variants_filtered.rds" ]; then
         echo "Error: RDS output file was not created"
+        exit 1
+    fi
+
+    if [ ! -f "${gene_name}_small_variants_filtered_stats.csv" ]; then
+        echo "Error: Stats output file was not created"
         exit 1
     fi
     

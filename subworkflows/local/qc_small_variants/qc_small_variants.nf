@@ -47,6 +47,7 @@ workflow QC_SMALL_VARIANTS {
     
     // RUN filterSmallVar
     filterSmallVar(cleanFormatSmallVar.out.clean_rds)
+            // out.stats_csv: path(filtered_stats_file)
             // out.filtered_clean_tsv: path(filtered_tsv_file)
             // out.filtered_clean_rds: tuple(path(filtered_rds_file), val(gene_name))
 
