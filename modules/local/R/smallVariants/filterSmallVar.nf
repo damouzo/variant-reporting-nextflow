@@ -7,7 +7,7 @@ process filterSmallVar {
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
 
     input:
-        tuple path(clean_smallvar_file), val(gene_name)
+         tuple path(clean_smallvar_file), val(gene_name), path(part_metadata_file)
 
     output:
         path("${gene_name}_small_variants_filtered.tsv"), emit: filtered_clean_tsv
@@ -18,7 +18,7 @@ process filterSmallVar {
     script:
     """
     echo "Processing gene: ${gene_name} with annotation file: ${clean_smallvar_file}"
-    filterSmallVar.R ${clean_smallvar_file} ${gene_name}
+    filterSmallVar.R ${clean_smallvar_file} ${gene_name} ${part_metadata_file}
 
     # Check output files created
     if [ ! -f "${gene_name}_small_variants_filtered.tsv" ]; then

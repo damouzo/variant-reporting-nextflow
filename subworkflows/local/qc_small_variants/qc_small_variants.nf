@@ -45,8 +45,13 @@ workflow QC_SMALL_VARIANTS {
     plotQCsmallVar(plot_input_ch, extractSmallVarPartID.out.partMet)
             // out.plots: path(plot_file)
     
+    // Prepare input for filterSmallVar - combine clean_rds with partMet
+    filter_input_ch = cleanFormatSmallVar.out.clean_rds
+        .combine(extractSmallVarPartID.out.partMet)
+        .map { clean_table, gene_name, part_met -> tuple(clean_table, gene_name, part_met) }
+    
     // RUN filterSmallVar
-    filterSmallVar(cleanFormatSmallVar.out.clean_rds)
+    filterSmallVar(filter_input_ch)
             // out.stats_csv: path(filtered_stats_file)
             // out.filtered_clean_tsv: path(filtered_tsv_file)
             // out.filtered_clean_rds: tuple(path(filtered_rds_file), val(gene_name))

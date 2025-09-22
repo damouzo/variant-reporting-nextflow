@@ -3,8 +3,9 @@
 
 # Arguments --------------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-clean_smallvar_file <- args[1]  # "C:/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/raw_data/WGS_Variants/smallVar/GRCh38_DDX41_annotated_variants.tsv"
-gene_name <- args[2]        # "DDX41"
+clean_smallvar_file   <- args[1]  # "C:/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/raw_data/WGS_Variants/smallVar/GRCh38_DDX41_annotated_variants.tsv"
+gene_name             <- args[2]        # "DDX41"
+part_metadata_file    <- args[3]   # TSV file with participant metadata
 
 # Libraries  -------------------------------------------------------------------
 library(tidyverse)
@@ -16,14 +17,39 @@ set.seed(23)
 
 # Load gene annotated variant file ---------------------------------------------
 variant_table <- readRDS(clean_smallvar_file)
+participant_metadata <- read.table(part_metadata_file, sep = "\t", header = TRUE, 
+                                  stringsAsFactors = FALSE, quote = "")
 
+# Function to count unique participants ----------------------------------------
+count_unique_participants <- function(variant_df, metadata_df) {
+  # Extract all samples from Het_samples, Hom_samples, and Hemi_samples
+  all_samples <- c()
+  
+  for (col in c("Het_samples", "Hom_samples", "Hemi_samples")) {
+    if (col %in% colnames(variant_df)) {
+      samples_in_col <- unlist(strsplit(variant_df[[col]], ","))
+      samples_in_col <- trimws(samples_in_col)
+      samples_in_col <- samples_in_col[samples_in_col != "NA" & samples_in_col != ""]
+      all_samples <- c(all_samples, samples_in_col)
+    }
+  }
+  
+  # Get unique participant_ids
+  unique_samples <- unique(all_samples)
+  matched_participants <- metadata_df$participant_id[metadata_df$plate_key %in% unique_samples]
+  return(length(unique(matched_participants)))
+}
 
 # Filter for canonical variants -------------------------------------------------
 # Stats of variant filtering
-stats_variants_filter <- data.frame(metric = character(), count = numeric(), stringsAsFactors = FALSE)
+stats_variants_filter <- data.frame(metric = character(), variant_count = numeric(), 
+                                    participant_count = numeric(), stringsAsFactors = FALSE
+)
+
 stats_variants_filter <- rbind(stats_variants_filter, 
-                              data.frame(metric = "total_raw_variants", 
-                                        count = nrow(variant_table)))
+                              data.frame(metric = "total_raw_variants", variant_count = nrow(variant_table),
+                                participant_count = count_unique_participants(variant_table, participant_metadata)
+                              ))
 
 # Filter for canonical variants
 variant_filtered_table <- variant_table[variant_table$CANONICAL_annotation == "YES", ]
@@ -31,7 +57,9 @@ variant_filtered_table <- variant_table[variant_table$CANONICAL_annotation == "Y
 # Add canonical variants count to stats
 stats_variants_filter <- rbind(stats_variants_filter, 
                               data.frame(metric = "total_canonical_variants", 
-                                        count = nrow(variant_filtered_table)))
+                                      variant_count = nrow(variant_filtered_table),
+                                      participant_count = count_unique_participants(variant_filtered_table, participant_metadata)
+                              ))
 
 
 # Filter ClinVar annotations ---------------------------------------------------
@@ -59,9 +87,11 @@ variant_filtered_table$clinvar_category <- sapply(variant_filtered_table$CLIN_SI
 # Count each category and add to stats
 clinvar_counts <- table(variant_filtered_table$clinvar_category)
 for (category in names(clinvar_counts)) {
+  category_variants <- variant_filtered_table[variant_filtered_table$clinvar_category == category, ]
   stats_variants_filter <- rbind(stats_variants_filter, 
                                 data.frame(metric = paste0("total_canonical_", category), 
-                                          count = as.numeric(clinvar_counts[category])))
+                                           variant_count = as.numeric(clinvar_counts[category]),
+                                           participant_count = count_unique_participants(category_variants, participant_metadata)))
 }
 
 # Filter out benign variants
@@ -70,7 +100,9 @@ variant_filtered_table <- variant_filtered_table[variant_filtered_table$clinvar_
 # Add count after benign filtering
 stats_variants_filter <- rbind(stats_variants_filter, 
                               data.frame(metric = "total_canonical_nonBenign", 
-                                        count = nrow(variant_filtered_table)))
+                                         variant_count = nrow(variant_filtered_table),
+                                         participant_count = count_unique_participants(variant_filtered_table, participant_metadata)
+                              ))
 
 
 # Filter by MAX_AF annotation --------------------------------------------------
@@ -83,7 +115,9 @@ variant_filtered_table <- variant_filtered_table[
 # Add count after MAX_AF filtering
 stats_variants_filter <- rbind(stats_variants_filter, 
                               data.frame(metric = "total_canonical_nonBenign_MAF<0.001", 
-                                        count = nrow(variant_filtered_table)))
+                                         variant_count = nrow(variant_filtered_table),
+                                         participant_count = count_unique_participants(variant_filtered_table, participant_metadata)
+                              ))
 
 
 # Print summary ----------------------------------------------------------------
