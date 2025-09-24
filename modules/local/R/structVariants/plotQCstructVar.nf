@@ -8,7 +8,7 @@ process plotQCstructVar {
     publishDir "${params.results_dir}/${gene_name}/plots/struct_variants", mode: 'copy'
 
     input:
-    tuple path(clean_table), val(gene_name)
+    tuple path(clean_table), val(gene_name), path(part_metadata_file)
 
     // Save all PDFs generated
     output:
@@ -18,7 +18,7 @@ process plotQCstructVar {
     script:
     """
     echo "Plotting QC for gene: ${gene_name}"
-    plotQCstructVar.R ${clean_table} ${gene_name}
+    plotQCstructVar.R ${clean_table} ${gene_name} ${part_metadata_file}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

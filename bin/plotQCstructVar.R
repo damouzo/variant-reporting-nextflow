@@ -3,24 +3,26 @@
 
 # Arguments --------------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 2) {
-  stop("script.R <struct_variants> <gene_name>")
+if (length(args) != 3) {
+  stop("script.R <struct_variants> <gene_name> <part_metadata_file>")
 }
 
-struct_variants <- args[1] # r"(C:\Users\qp241615\OneDrive - Queen Mary, University of London\Documents\4. Projects\1. DHX34\results\DDX41\DDX41_structural_variants.rds)"
-gene_name       <- args[2] # "DDX41"
+struct_variants     <- args[1] # r"(C:\Users\qp241615\OneDrive - Queen Mary, University of London\Documents\4. Projects\1. DHX34\results\DDX41\DDX41_structural_variants.rds)"
+gene_name           <- args[2] # "DDX41"
+part_metadata_file  <- args[3] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\results\\DHX34\\DHX34_small_variants_participantMetadata.tsv"
 
 
 # Message validation files
 cat("Validating input files for gene:", gene_name, "\n")
 missing_files <- c()
 if (!file.exists(struct_variants)) missing_files <- c(missing_files, paste("Structural variants:", struct_variants))
+if (!file.exists(part_metadata_file)) missing_files <- c(missing_files, paste("Participant metadata file:", part_metadata_file))
 
 if (length(missing_files) > 0) {
   cat("ERROR: Missing files detected:\n", paste(missing_files, collapse = "\n"), "\n")
+  stop("Validation failed due to missing files.")
 }
 cat("All input files validated successfully\n")
-
 
 
 # Libraries  -------------------------------------------------------------------
@@ -37,6 +39,9 @@ set.seed(23)
 # Load Data ---------------------------------------------------------------------
 ## Structural Variants
 variants_table <- readRDS(struct_variants)
+
+## Participant Metadata
+metadata_info <- read_tsv(part_metadata_file)
 
 
 # Plots Functions ---------------------------------------------------------
@@ -91,6 +96,36 @@ generate_cnv_plot <- function(data, gene, variant_orig) {
   dev.off()
 }
 
+generate_inversion_plot <- function(data, gene, variant_orig) {
+  pdf(paste0(gene, "_", variant_orig, "_Inversions_Segments.pdf"), width = 14, height = 10)
+  
+  plot_data <- data %>%
+    mutate(start_pos = as.numeric(POS), end_pos = as.numeric(INFO_END), quality = as.numeric(QUAL_SVonly), 
+          unique_inversion = paste0(CHROM, "_", POS, "_", INFO_END)) %>%
+    group_by(unique_inversion, start_pos, end_pos) %>%
+    summarise(count = n(), avg_quality = mean(quality, na.rm = TRUE), .groups = "drop") %>%
+    mutate(variant_id = row_number()) %>%
+    arrange(desc(count))
+  
+  print(
+    ggplot(plot_data, aes(y = variant_id)) +
+      geom_segment(aes(x = start_pos, xend = end_pos, yend = variant_id, color = avg_quality),
+                  size = 0.8, alpha = 0.8) +
+      scale_color_gradient(low = "#0066CC", high = "#FF0000", name = "Avg Quality") +
+      theme_minimal() +
+      labs(title = paste0("Inversions in ", variant_orig, " variants for ", gene),
+        x = "Genomic Position (bp)", y = "Unique Inversions") +
+      theme(axis.text.x = element_text(size = 12, angle = 45, hjust = 1),
+        axis.text.y = element_blank(), axis.ticks.y = element_blank(),
+        axis.title.x = element_text(size = 14), axis.title.y = element_text(size = 14),
+        plot.title = element_text(size = 16), legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10)) +
+      scale_x_continuous(labels = scales::comma_format()) +
+      scale_y_continuous(breaks = NULL)
+  )
+  dev.off()
+}
+
 
 # Plots Generation -------------------------------------------------------------------
 for (variant_orig in unique(variants_table$variant_origin)) {
@@ -133,6 +168,16 @@ for (variant_orig in unique(variants_table$variant_origin)) {
     cat("No CNV data available for variant origin:", variant_orig, "\n")
   } else {
     generate_cnv_plot(variants_table_VarOrg_CNV, gene_name, variant_orig)
+  }
+
+  # Generate inversion plot
+  variants_table_VarOrg_INV <- variants_table_VarOrg %>%
+    filter(INFO_SVTYPE == "INV")
+
+  if (nrow(variants_table_VarOrg_INV) == 0) {
+    cat("No inversion data available for variant origin:", variant_orig, "\n")
+  } else {
+    generate_inversion_plot(variants_table_VarOrg_INV, gene_name, variant_orig)
   }
 }
 

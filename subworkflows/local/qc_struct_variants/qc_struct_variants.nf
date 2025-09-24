@@ -77,16 +77,16 @@ workflow QC_STRUCT_VARIANTS {
             // out.partID: path(partID_file)
             // out.partMet: path(partMetadata_file)
 
-    // RUN plotQCstructVar
-    plotQCstructVar(cleanFormatStructVar.out.clean_rds)
-
     // Prepare input for filterStructVar - combine clean_rds with partMet
-    filter_input_ch = cleanFormatStructVar.out.clean_rds
+    cleanVar_Metadata_input_ch = cleanFormatStructVar.out.clean_rds
         .combine(extractStructVarPartID.out.partMet)
         .map { clean_table, gene_name, part_met -> tuple(clean_table, gene_name, part_met) }
 
+    // RUN plotQCstructVar
+    plotQCstructVar(cleanVar_Metadata_input_ch)
+
     // RUN filterStructVar
-    filterStructVar(filter_input_ch)
+    filterStructVar(cleanVar_Metadata_input_ch)
             // out.stats_csv: path(filtered_stats_file)
             // out.filtered_clean_tsv: path(filtered_tsv_file)
             // out.filtered_clean_rds: tuple(path(filtered_rds_file), val(gene_name))

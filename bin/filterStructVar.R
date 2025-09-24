@@ -64,6 +64,18 @@ stats_variants_filter <- rbind(stats_variants_filter,
                                       variant_count = nrow(variant_filtered_table),
                                       participant_count = count_unique_participants(variant_filtered_table, participant_metadata)))
 
+# Filter for QUAL_SVonly >= 250 (keep NAs)
+# Reference: https://www.nature.com/articles/s41467-020-16481-5
+if ("QUAL_SVonly" %in% colnames(variant_filtered_table)) {
+  variant_filtered_table <- variant_filtered_table[is.na(variant_filtered_table$QUAL_SVonly) | 
+                                                   variant_filtered_table$QUAL_SVonly >= 250, ]
+  
+  stats_variants_filter <- rbind(stats_variants_filter, 
+                                data.frame(metric = "total_PASS_QUAL250_variants", 
+                                           variant_count = nrow(variant_filtered_table),
+                                           participant_count = count_unique_participants(variant_filtered_table, participant_metadata)))
+}
+
 # Filter for majority gene symbol
 if ("SYMBOL_annotation" %in% colnames(variant_filtered_table)) {
   # Count occurrences of each symbol
