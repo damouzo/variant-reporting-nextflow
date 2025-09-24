@@ -5,6 +5,7 @@ include { cleanFormatStructVar_CNV } from '../../../modules/local/R/structVarian
 include { cleanFormatStructVar } from '../../../modules/local/R/structVariants/cleanFormatStructVar.nf'
 include { extractStructVarPartID } from '../../../modules/local/R/structVariants/extractStructVarPartID.nf'
 include { plotQCstructVar } from '../../../modules/local/R/structVariants/plotQCstructVar.nf'
+include { filterStructVar } from '../../../modules/local/R/structVariants/filterStructVar.nf'
 
 
 workflow QC_STRUCT_VARIANTS {
@@ -72,12 +73,23 @@ workflow QC_STRUCT_VARIANTS {
     cleanFormatStructVar(combined_struct_ch)
 
     // RUN extractStructVarPartID
-    extractStructVarPartID(cleanFormatStructVar.out.struct_rds, params.labkey_main)
+    extractStructVarPartID(cleanFormatStructVar.out.clean_rds, params.labkey_main)
             // out.partID: path(partID_file)
             // out.partMet: path(partMetadata_file)
 
     // RUN plotQCstructVar
-    plotQCstructVar(cleanFormatStructVar.out.struct_rds)
+    plotQCstructVar(cleanFormatStructVar.out.clean_rds)
+
+    // Prepare input for filterStructVar - combine clean_rds with partMet
+    filter_input_ch = cleanFormatStructVar.out.clean_rds
+        .combine(extractStructVarPartID.out.partMet)
+        .map { clean_table, gene_name, part_met -> tuple(clean_table, gene_name, part_met) }
+
+    // RUN filterStructVar
+    filterStructVar(filter_input_ch)
+            // out.stats_csv: path(filtered_stats_file)
+            // out.filtered_clean_tsv: path(filtered_tsv_file)
+            // out.filtered_clean_rds: tuple(path(filtered_rds_file), val(gene_name))
 
     // Collect versions
     ch_versions = ch_versions.mix(cleanFormatStructVar_CNV.out.versions)
@@ -93,7 +105,7 @@ workflow QC_STRUCT_VARIANTS {
     clean_sv_tables  = sv_clean_ch.map { gene, file -> tuple(file, gene) }  
     partID      = params.enable_sql_queries ? extractStructVarPartID.out.partID : Channel.empty()
     partMet     = params.enable_sql_queries ? extractStructVarPartID.out.partMet : Channel.empty()
-    final_tables     = cleanFormatStructVar.out.struct_rds
+    final_tables     = cleanFormatStructVar.out.clean_rds
     versions         = ch_versions
 }
 
