@@ -49,9 +49,7 @@ workflow {
     // Run Small Variants QC workflow
     QC_SMALL_VARIANTS(
         small_var_ch,
-        gene_list_ch,
-        Channel.fromPath("${params.prot_dir}/*.gff"),
-        Channel.fromPath("${params.exon_dir}/*.tsv")
+        gene_list_ch
     )
 
     // RUN Structural Variants QC workflow
@@ -64,11 +62,10 @@ workflow {
     QC_BCI_PATIENTS_VARIANTS(
         bci_patients_var_ch,
         gene_list_ch,
-        Channel.fromPath("${params.prot_dir}/*.gff"),
-        Channel.fromPath("${params.exon_dir}/*.tsv"),
         QC_SMALL_VARIANTS.out.clean_rds,
         QC_SMALL_VARIANTS.out.partMet
     )
+    
 
     workflow.onError = {
         log.error "Pipeline execution stopped with the following error: ${workflow.errorMessage}"

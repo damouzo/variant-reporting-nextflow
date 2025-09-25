@@ -7,7 +7,7 @@ process extractStructVarPartID {
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
 
     input:
-        tuple path(strucvar_annot_file), val(gene_name)
+        tuple val(gene_name), path(structvar_annot_file)
         val labkey_main
 
     output:
@@ -17,8 +17,8 @@ process extractStructVarPartID {
 
     script:
     """
-    echo "Processing: ${gene_name} with annotation file: ${strucvar_annot_file} and labkey: ${labkey_main}"
-    extractStructVarPartID.R ${strucvar_annot_file} ${gene_name} ${labkey_main}
+    echo "Processing: ${gene_name} with annotation file: ${structvar_annot_file} and labkey: ${labkey_main}"
+    extractStructVarPartID.R ${structvar_annot_file} ${gene_name} ${labkey_main}
 
     # Check output files created
     if [ ! -f "${gene_name}_structural_variants_participantID.txt" ]; then

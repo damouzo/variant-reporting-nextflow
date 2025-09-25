@@ -80,7 +80,7 @@ workflow QC_STRUCT_VARIANTS {
     // Prepare input for filterStructVar - combine clean_rds with partMet
     cleanVar_Metadata_input_ch = cleanFormatStructVar.out.clean_rds
         .combine(extractStructVarPartID.out.partMet)
-        .map { clean_table, gene_name, part_met -> tuple(clean_table, gene_name, part_met) }
+        .map { gene_name, clean_table, part_met -> tuple(gene_name, clean_table, part_met) }
 
     // RUN plotQCstructVar
     plotQCstructVar(cleanVar_Metadata_input_ch)
@@ -101,11 +101,12 @@ workflow QC_STRUCT_VARIANTS {
     }
 
     emit:
-    clean_cnv_tables = cnv_clean_ch.map { gene, file -> tuple(file, gene) } 
-    clean_sv_tables  = sv_clean_ch.map { gene, file -> tuple(file, gene) }  
-    partID      = params.enable_sql_queries ? extractStructVarPartID.out.partID : Channel.empty()
-    partMet     = params.enable_sql_queries ? extractStructVarPartID.out.partMet : Channel.empty()
-    final_tables     = cleanFormatStructVar.out.clean_rds
-    versions         = ch_versions
+    clean_cnv_tables      = cnv_clean_ch.map { gene, file -> tuple(file, gene) } 
+    clean_sv_tables       = sv_clean_ch.map { gene, file -> tuple(file, gene) }  
+    partID                = params.enable_sql_queries ? extractStructVarPartID.out.partID : Channel.empty()
+    partMet               = params.enable_sql_queries ? extractStructVarPartID.out.partMet : Channel.empty()
+    filtered_clean_tsv    = filterStructVar.out.filtered_clean_tsv     
+    plot_files            = plotQCstructVar.out.plots
+    versions              = ch_versions
 }
 

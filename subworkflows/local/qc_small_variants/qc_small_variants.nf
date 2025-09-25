@@ -11,19 +11,21 @@ workflow QC_SMALL_VARIANTS {
     take:
     small_var_ch    // channel: small variant files
     gene_list_ch    // channel: list of genes
-    prot_files_ch   // channel: protein annotation files
-    exon_files_ch   // channel: exon annotation files
 
     main:
     // Create versions channel
     ch_versions = Channel.empty()
+
+    // Load reference annotation files
+    prot_files_ch = Channel.fromPath("${params.prot_dir}/*.gff")
+    exon_files_ch = Channel.fromPath("${params.exon_dir}/*.tsv")
 
     // Prepare input for cleanFormatSmallVar
     clean_input_ch = small_var_ch
         .combine(gene_list_ch)
         .filter { file, gene -> file.name.contains(gene) }
         .map { file, gene -> tuple(file, gene) }
-    
+
     // RUN cleanFormatSmallVar
     cleanFormatSmallVar(clean_input_ch)  
             // out.clean_tsv: path(tsv_file) 

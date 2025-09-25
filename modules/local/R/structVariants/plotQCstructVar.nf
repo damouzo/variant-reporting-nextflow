@@ -8,11 +8,11 @@ process plotQCstructVar {
     publishDir "${params.results_dir}/${gene_name}/plots/struct_variants", mode: 'copy'
 
     input:
-    tuple path(clean_table), val(gene_name), path(part_metadata_file)
+    tuple val(gene_name), path(clean_table), path(part_metadata_file)
 
     // Save all PDFs generated
     output:
-    path "*.pdf"
+    path "*.pdf", emit: plots
     path "versions.yml", emit: versions
 
     script:

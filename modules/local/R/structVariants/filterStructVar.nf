@@ -7,7 +7,7 @@ process filterStructVar {
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
 
     input:
-         tuple path(clean_structvar_file), val(gene_name), path(part_metadata_file)
+        tuple val(gene_name), path(clean_structvar_file), path(part_metadata_file)
 
     output:
         path("${gene_name}_struct_variants_filtered.tsv"), emit: filtered_clean_tsv

@@ -8,9 +8,7 @@ process plotQCBciPatientsVar {
     publishDir "${params.results_dir}/${gene_name}/plots/bci_patients_variants", mode: 'copy'
 
     input:
-    tuple path(bci_rds), val(gene_name) 
-    path(prot_file)
-    path(exon_file)
+    tuple val(gene_name), path(bci_rds), path(prot_file), path(exon_file)
 
     // Save all PDFs generated
     output:
