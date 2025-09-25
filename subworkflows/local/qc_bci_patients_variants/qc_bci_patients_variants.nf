@@ -79,12 +79,9 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     
     // Combine BCI clean data with clean variants from the first subworkflow
     comparison_input_ch = cleanFormatBciPatientsVar.out.clean_rds
-        .combine(clean_variants_ch)
-        .filter { _bci_rds, bci_gene, _ge_rds, ge_gene -> 
-            bci_gene == ge_gene 
-        }
-        .map { bci_rds, bci_gene, ge_rds, _ge_gene -> 
-            tuple(bci_rds, ge_rds, bci_gene) 
+        .join(clean_variants_ch) 
+        .map { gene_name, bci_rds, ge_rds -> 
+            tuple(bci_rds, ge_rds, gene_name) 
         }
 
     // RUN comparison BCI vs GE

@@ -7,7 +7,7 @@ process extractSmallVarPartID {
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
 
     input:
-        tuple path(smallvar_annot_file), val(gene_name)
+        tuple val(gene_name), path(smallvar_annot_file) 
         val labkey_main
 
     output:

@@ -1,13 +1,13 @@
 #!/usr/bin/env Rscript
-# Script: plotQCsmallVar
+# Script: plotFilteredSmallVar
 
 # Arguments --------------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 5) {
-  stop("script.R <clean_table> <gene_name> <prot_file> <exon_file> <part_metadata_file>")
+  stop("script.R <filtered_table> <gene_name> <prot_file> <exon_file> <part_metadata_file>")
 }
 
-clean_table     <- args[1] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\results\\DHX34\\DHX34_small_variants.rds"
+filtered_table  <- args[1] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\results\\DHX34\\DHX34_small_variants.rds"
 gene_name       <- args[2] # "DHX34"
 prot_file       <- args[3] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\data\\reference\\Protein\\DHX34.gff"
 exon_file       <- args[4] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\data\\reference\\Exon\\DHX34.tsv"
@@ -16,7 +16,7 @@ p_metadata_file <- args[5] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, Univer
 # Message validation files
 cat("Validating input files for gene:", gene_name, "\n")
 missing_files <- c()
-if (!file.exists(clean_table)) missing_files <- c(missing_files, paste("Clean table:", clean_table))
+if (!file.exists(filtered_table)) missing_files <- c(missing_files, paste("Filtered table:", filtered_table))
 if (!file.exists(prot_file)) missing_files <- c(missing_files, paste("Protein file:", prot_file))
 if (!file.exists(exon_file)) missing_files <- c(missing_files, paste("Exon file:", exon_file))
 if (!file.exists(p_metadata_file)) missing_files <- c(missing_files, paste("Participant metadata file:", p_metadata_file))
@@ -37,6 +37,8 @@ library(rtracklayer)
 library(GenomicRanges)
 library(paletteer)
 library(grid)
+
+
 
 # Settings ----------------------------------------------------------------------
 #box::use(./utils_plotLollipop[...])
@@ -2005,6 +2007,7 @@ lolliplot <- function(SNP.gr, features=NULL, ranges=NULL,
 
 set.seed(23)
 
+
 # Palettete ---------------------------------------------------------------------
 my_pal <- c(paletteer_d("RColorBrewer::Set1"),paletteer_d("RColorBrewer::Set3"))
 pastel_colors <- c("#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", "#D5BAFF", 
@@ -2014,7 +2017,7 @@ pastel_colors <- c("#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", "#D5BA
 
 # Load Data ---------------------------------------------------------------------
 ## Variants
-variants_table <- readRDS(clean_table)
+variants_table <- readRDS(filtered_table)
 
 ## Protein gff
 protein_info <- rtracklayer::import(prot_file)
@@ -2026,9 +2029,10 @@ exon_info <- read_tsv(exon_file)
 metadata_info <- read_tsv(p_metadata_file)
 
 
+
 # Visual Plots -----------------------------------------------------------------
 ## Distribution of MAF_variants ------
-pdf(paste0(gene_name, "_QC_MAF_Distribution.pdf"))
+pdf(paste0(gene_name, "_Filtered_MAF_Distribution.pdf"))
 ggplot(variants_table, aes(x = log10(MAF_variant + 1e-6))) +
       geom_histogram(bins = 50, fill = "black") +
           labs(title = paste0(gene_name, " MAF Distribution"), x = "MAF (log10) + 1e-6",
@@ -2038,7 +2042,7 @@ dev.off()
 
 
 ## MAF vs IMPACT -------
-pdf(paste0(gene_name,"_QC_MAFvsIMPACT.pdf"), width=14, height=8)
+pdf(paste0(gene_name,"_Filtered_MAFvsIMPACT.pdf"), width=14, height=8)
 ggplot(variants_table, aes(x = log10(MAF_variant + 1e-6), y = IMPACT_annotation, 
                   color = CLIN_SIG_annotation, shape = SYMBOL_annotation)) +
       geom_jitter(width = 0.1, height = 0.1, size = 3, alpha = 0.8) +
@@ -2052,7 +2056,7 @@ dev.off()
 
 
 ## IMPACT Frequency -------
-pdf(paste0(gene_name,"_QC_IMPACT_Frequency.pdf"))
+pdf(paste0(gene_name,"_Filtered_IMPACT_Frequency.pdf"))
 print(ggplot(variants_table, aes(x = IMPACT_annotation)) + 
       geom_bar(fill = "#0072B2", color = "black", width = 0.7) +
       geom_text(stat="count", aes(label= after_stat(count)),vjust=-0.5, color="black", size=5) +
@@ -2100,7 +2104,7 @@ adaptive_bw <- round(adaptive_bw / 100) * 100
 cat(paste0("Gene length: ", format(gene_length, big.mark = ","), " bp\n"))
 cat(paste0("Adaptive bandwidth: ", format(adaptive_bw, big.mark = ","), " bp\n"))
 
-pdf(paste0(gene_name,"_QC_Density_variants.pdf"), width=14, height=8)
+pdf(paste0(gene_name,"_Filtered_Density_variants.pdf"), width=14, height=8)
 ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IMPACT_annotation)) +
     geom_density(bw=adaptive_bw,alpha = 0.3) +
     geom_rect(data = exon_info,
@@ -2176,7 +2180,7 @@ create_lollipop_plot <- function(df_data, gene_name, subset_label, protein_info,
   
   
   # Create filename and plot
-  filename <- paste0(gene_name, "_QC_Lollipop_", subset_label, ".pdf")
+  filename <- paste0(gene_name, "_Filtered_Lollipop_", subset_label, ".pdf")
 
   pdf(filename, height=9)
   lolliplot(sample.gr.rot, features, legend=legends, ylab="Num. of Participants",
@@ -2466,7 +2470,7 @@ if (nrow(canonical_variants) > 0) {
     }
     
     # Create PDF with all barplots on the same page using grid functions
-    pdf_file <- paste0(gene_name, "_QC_CanonicalVar_PartMetadata_Barplots.pdf")
+    pdf_file <- paste0(gene_name, "_Filtered_PartMetadata_Barplots.pdf")
     pdf(pdf_file, width = 12, height = 16)
     
     # Create a single page with both grids
@@ -2561,3 +2565,4 @@ if (nrow(canonical_variants) > 0) {
 
 
 cat("Plots generated successfully for gene:", gene_name, "\n")
+

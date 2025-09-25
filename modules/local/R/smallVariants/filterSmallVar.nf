@@ -7,12 +7,12 @@ process filterSmallVar {
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
 
     input:
-         tuple path(clean_smallvar_file), val(gene_name), path(part_metadata_file)
+         tuple val(gene_name), path(clean_smallvar_file),  path(part_metadata_file)
 
     output:
-        path("${gene_name}_small_variants_filtered.tsv"), emit: filtered_clean_tsv
-        tuple path("${gene_name}_small_variants_filtered.rds"), val(gene_name), emit: filtered_clean_rds
-        path("${gene_name}_small_variants_filtered_stats.csv"), emit: stats_csv
+        path "${gene_name}_small_variants_filtered_stats.csv", emit: stats_csv
+        path "${gene_name}_small_variants_filtered.tsv", emit: filtered_clean_tsv
+        tuple val(gene_name), path("${gene_name}_small_variants_filtered.rds"), emit: filtered_clean_rds
         path "versions.yml", emit: versions
 
     script:

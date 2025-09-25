@@ -1,6 +1,6 @@
-// Nextflow script to call the R script for plotting QC of small variants
+// Nextflow script to call the R script for plotting filtered small variants
 
-process plotQCsmallVar {
+process plotFilteredSmallVar {
     tag { gene_name }
     label 'r_process'
 
@@ -8,17 +8,17 @@ process plotQCsmallVar {
     publishDir "${params.results_dir}/${gene_name}/plots/small_variants", mode: 'copy'
 
     input:
-    tuple val(gene_name), path(clean_table), path(prot_file), path(exon_file), path(part_metadata_file)
+    tuple val(gene_name), path(filtered_table), path(prot_file), path(exon_file), path(part_metadata_file)
 
     // Save all PDFs generated
     output:
-    path "*.pdf", emit: plots
+    path "*.pdf", emit: filtered_plots
     path "versions.yml", emit: versions
 
     script:
     """
-    echo "Plotting QC for gene: ${gene_name}"
-    plotQCsmallVar.R ${clean_table} ${gene_name} ${prot_file} ${exon_file} ${part_metadata_file}
+    echo "Plotting filtered variants for gene: ${gene_name}"
+    plotFilteredSmallVar.R ${filtered_table} ${gene_name} ${prot_file} ${exon_file} ${part_metadata_file}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

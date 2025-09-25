@@ -10,8 +10,8 @@ process cleanFormatSmallVar {
         tuple path(smallvar_annot_file), val(gene_name)
 
     output:
-        path("${gene_name}_small_variants.tsv"), emit: clean_tsv
-        tuple path("${gene_name}_small_variants.rds"), val(gene_name), emit: clean_rds
+        path "${gene_name}_small_variants.tsv", emit: clean_tsv
+        tuple val(gene_name), path("${gene_name}_small_variants.rds"), emit: clean_rds
         path "versions.yml", emit: versions
 
     script:
