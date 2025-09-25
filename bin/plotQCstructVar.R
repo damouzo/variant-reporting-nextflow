@@ -41,7 +41,7 @@ set.seed(23)
 variants_table <- readRDS(struct_variants)
 
 ## Participant Metadata
-metadata_info <- read_tsv(part_metadata_file)
+metadata_info <- readRDS(part_metadata_file)
 
 
 # Plots Functions ---------------------------------------------------------

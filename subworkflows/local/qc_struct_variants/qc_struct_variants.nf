@@ -6,7 +6,7 @@ include { cleanFormatStructVar } from '../../../modules/local/R/structVariants/c
 include { extractStructVarPartID } from '../../../modules/local/R/structVariants/extractStructVarPartID.nf'
 include { plotQCstructVar } from '../../../modules/local/R/structVariants/plotQCstructVar.nf'
 include { filterStructVar } from '../../../modules/local/R/structVariants/filterStructVar.nf'
-
+include { plotFilteredStructVar } from '../../../modules/local/R/structVariants/plotFilteredStructVar.nf'
 
 workflow QC_STRUCT_VARIANTS {
     take:
@@ -16,6 +16,23 @@ workflow QC_STRUCT_VARIANTS {
     main:
     // Create versions channel
     ch_versions = Channel.empty()
+
+    // Load reference annotation files
+    prot_files_ch = Channel.fromPath("${params.prot_dir}/*.gff")
+    exon_files_ch = Channel.fromPath("${params.exon_dir}/*.tsv")
+
+    // Prepare protein and exon files with gene_name as the key
+    prot_files_with_gene_ch = prot_files_ch
+        .map { file -> 
+            def gene_name = file.baseName.replaceAll(/\.gff$/, '')
+            tuple(gene_name, file)
+        }
+
+    exon_files_with_gene_ch = exon_files_ch
+        .map { file -> 
+            def gene_name = file.baseName.replaceAll(/\.tsv$/, '')
+            tuple(gene_name, file)
+        }
 
     // Filter and prepare input channels for CNV and SV
     cnv_germline_ch = struct_var_ch
@@ -74,12 +91,13 @@ workflow QC_STRUCT_VARIANTS {
 
     // RUN extractStructVarPartID
     extractStructVarPartID(cleanFormatStructVar.out.clean_rds, params.labkey_main)
-            // out.partID: path(partID_file)
-            // out.partMet: path(partMetadata_file)
+            // out.partID_txt: path(partID_file)
+            // out.partMet_tsv: path(partMetadata_file)
+            // out.partMet_rds: tuple(val(gene_name), path(partMetadata_rds_file))
 
     // Prepare input for filterStructVar - combine clean_rds with partMet
     cleanVar_Metadata_input_ch = cleanFormatStructVar.out.clean_rds
-        .combine(extractStructVarPartID.out.partMet)
+        .join(extractStructVarPartID.out.partMet_rds)  
         .map { gene_name, clean_table, part_met -> tuple(gene_name, clean_table, part_met) }
 
     // RUN plotQCstructVar
@@ -89,7 +107,20 @@ workflow QC_STRUCT_VARIANTS {
     filterStructVar(cleanVar_Metadata_input_ch)
             // out.stats_csv: path(filtered_stats_file)
             // out.filtered_clean_tsv: path(filtered_tsv_file)
-            // out.filtered_clean_rds: tuple(path(filtered_rds_file), val(gene_name))
+            // out.filtered_clean_rds: tuple(val(gene_name), path(filtered_rds_file))
+    
+    // Preparar input para plotFilteredStructVar 
+    plot_filter_input_ch = filterStructVar.out.filtered_clean_rds
+        .join(prot_files_with_gene_ch)
+        .join(exon_files_with_gene_ch)
+        .join(extractStructVarPartID.out.partMet_rds)
+        .map { gene_name, filtered_table, prot_file, exon_file, part_met -> 
+            tuple(gene_name, filtered_table, prot_file, exon_file, part_met) 
+        }
+
+    // RUN plotFilteredStructVar
+    plotFilteredStructVar(plot_filter_input_ch)
+            // out.filtered_plots: path(filtered_plot_file)
 
     // Collect versions
     ch_versions = ch_versions.mix(cleanFormatStructVar_CNV.out.versions)
@@ -103,8 +134,9 @@ workflow QC_STRUCT_VARIANTS {
     emit:
     clean_cnv_tables      = cnv_clean_ch.map { gene, file -> tuple(file, gene) } 
     clean_sv_tables       = sv_clean_ch.map { gene, file -> tuple(file, gene) }  
-    partID                = params.enable_sql_queries ? extractStructVarPartID.out.partID : Channel.empty()
-    partMet               = params.enable_sql_queries ? extractStructVarPartID.out.partMet : Channel.empty()
+    partID_txt            = params.enable_sql_queries ? extractStructVarPartID.out.partID_txt : Channel.empty()
+    partMet_tsv           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_tsv : Channel.empty()
+    partMet_rds           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_rds : Channel.empty()  // ← AÑADIR ESTA LÍNEA
     filtered_clean_tsv    = filterStructVar.out.filtered_clean_tsv     
     plot_files            = plotQCstructVar.out.plots
     versions              = ch_versions

@@ -24,8 +24,7 @@ set.seed(23)
 
 # Load gene annotated variant file ---------------------------------------------
 variant_table <- readRDS(clean_structvar_file)
-participant_metadata <- read.table(part_metadata_file, sep = "\t", header = TRUE, 
-                                  stringsAsFactors = FALSE, quote = "")
+participant_metadata <- readRDS(part_metadata_file)
 
 
 # Function to count unique participants ----------------------------------------

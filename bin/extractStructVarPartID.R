@@ -73,7 +73,10 @@ cat("/nGlimpse of metadata and ID files of participants")
 
 # Save participants metadata
 write.table(participant_metadata, file = paste0(gene_name, "_structural_variants_participantMetadata.tsv"), 
-            sep = "\t", row.names = FALSE, quote = FALSE)
+      sep = "\t", row.names = FALSE, quote = FALSE)
+
+# Save participants metadata as RDS
+saveRDS(participant_metadata, file = paste0(gene_name, "_structural_variants_participantMetadata.rds"))
 
 # Save all participant IDs
 all_participants <- unique(query$participant_id)

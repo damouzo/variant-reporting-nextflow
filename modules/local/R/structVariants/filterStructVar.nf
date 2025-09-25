@@ -11,7 +11,7 @@ process filterStructVar {
 
     output:
         path("${gene_name}_struct_variants_filtered.tsv"), emit: filtered_clean_tsv
-        tuple path("${gene_name}_struct_variants_filtered.rds"), val(gene_name), emit: filtered_clean_rds
+        tuple val(gene_name), path("${gene_name}_struct_variants_filtered.rds"), emit: filtered_clean_rds
         path("${gene_name}_struct_variants_filtered_stats.csv"), emit: stats_csv
         path "versions.yml", emit: versions
 

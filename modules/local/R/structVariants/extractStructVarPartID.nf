@@ -11,8 +11,9 @@ process extractStructVarPartID {
         val labkey_main
 
     output:
-        path("${gene_name}_structural_variants_participantID.txt"), emit: partID
-        path("${gene_name}_structural_variants_participantMetadata.tsv"), emit: partMet
+        tuple val(gene_name), path("${gene_name}_structural_variants_participantMetadata.rds"), emit: partMet_rds
+        path("${gene_name}_structural_variants_participantID.txt"), emit: partID_txt
+        path("${gene_name}_structural_variants_participantMetadata.tsv"), emit: partMet_tsv
         path "versions.yml", emit: versions
 
     script:

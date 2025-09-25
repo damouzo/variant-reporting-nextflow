@@ -36,7 +36,7 @@ workflow QC_SMALL_VARIANTS {
             // out.partID: path(partID_file)
             // out.partMet: path(partMetadata_file)
     
-    // Preparar archivos de proteínas y exones con gene_name como key
+    // Prepare protein and exon files with gene_name as the key
     prot_files_with_gene_ch = prot_files_ch
         .map { file -> 
             def gene_name = file.baseName.replaceAll(/\.gff$/, '')
@@ -49,7 +49,7 @@ workflow QC_SMALL_VARIANTS {
             tuple(gene_name, file)
         }
 
-    // Preparar input para plotQCsmallVar
+    // Prepare input for plotQCsmallVar
     plot_input_ch = cleanFormatSmallVar.out.clean_rds
         .join(prot_files_with_gene_ch)
         .join(exon_files_with_gene_ch)
@@ -73,7 +73,7 @@ workflow QC_SMALL_VARIANTS {
             // out.filtered_clean_tsv: path(filtered_tsv_file)
             // out.filtered_clean_rds: tuple(val(gene_name), path(filtered_rds_file))
 
-     // Preparar input para plotFilteredSmallVar 
+    // Preparar input para plotFilteredSmallVar 
     plot_filter_input_ch = filterSmallVar.out.filtered_clean_rds
         .join(prot_files_with_gene_ch)
         .join(exon_files_with_gene_ch)
