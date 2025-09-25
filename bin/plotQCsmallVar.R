@@ -2217,19 +2217,7 @@ variant_subsets <- list(
     name = "MODERATE_Canonical",
     filters = list(IMPACT_annotation = "MODERATE", CANONICAL_annotation = "YES"), 
     description = "Moderate_Impact_Canonical"
-  )#,
-  # Lower priority combinations (uncomment if needed)
-  # list(
-  #   name = "MODERATE_NonCanonical",
-  #   filters = list(IMPACT_annotation = "MODERATE"),
-  #   special_filters = list(CANONICAL_annotation = "not_YES"),
-  #   description = "Moderate_Impact_NonCanonical"
-  # ),
-  # list(
-  #   name = "LOW_All", 
-  #   filters = list(IMPACT_annotation = "LOW"),
-  #   description = "Low_Impact_All"
-  # )
+  )
 )
 
 # Generate Lollipop Plots ------------------------------------------------------
@@ -2281,5 +2269,295 @@ for (subset_config in variant_subsets) {
   cat("Processing subset:", subset_config$description, "(", nrow(df_subset), "variants )\n")
   create_lollipop_plot(df_subset, gene_name, subset_config$description, protein_info, metadata_info)
 }
+
+
+# Metadata Distribution Plots ------------------------------------------------
+# Filter for canonical variants
+canonical_variants <- variants_table %>% filter(CANONICAL_annotation == "YES")
+
+if (nrow(canonical_variants) > 0) {
+  cat("Processing metadata for", nrow(canonical_variants), "canonical variants...\n")
+  
+  # Extract all samples from canonical variants
+  all_samples <- canonical_variants %>%
+    rowwise() %>%
+    mutate(
+      samples_all = paste(Het_samples, Hom_samples, Hemi_samples, sep = ","),
+      samples_all = gsub(",+", ",", samples_all),     
+      samples_all = gsub("^,|,$", "", samples_all),   
+      samples_all = trimws(samples_all)
+    ) %>%
+    ungroup() %>%
+    pull(samples_all) %>%
+    paste(collapse = ",") %>%
+    strsplit(",") %>%
+    unlist() %>%
+    unique() %>%
+    .[. != "" & !is.na(.)]
+  
+  cat("Found", length(all_samples), "unique samples with canonical variants\n")
+  
+  # Match samples to participant metadata
+  canonical_metadata <- metadata_info %>%
+  filter(plate_key %in% all_samples) %>%
+  mutate(
+    diagnosis_age = case_when(
+      !is.na(cancer_diagnosis_age) ~ as.numeric(as.character(cancer_diagnosis_age)),
+      !is.na(rare_disease_diagnosis_age) ~ as.numeric(as.character(rare_disease_diagnosis_age)),
+      TRUE ~ NA_real_
+    )
+  )
+  
+  # Variables of interest for barplots
+  vars_of_interest <- c("participant_type", "affection_status", "programme",
+                        "yob", "diagnosis_age", "participant_karyotyped_sex",  
+                        "genetically_inferred_ancestry_thr","normalised_disease_group", "normalised_disease_sub_group")
+  
+  # Create barplots for each variable
+  plot_list <- list()
+  
+  for (var in vars_of_interest) {
+    if (!var %in% colnames(canonical_metadata)) {
+      cat("Warning: Variable", var, "not found in metadata. Skipping...\n")
+      next
+    }
+    
+    # Handle variables depending on type
+    if (is.numeric(canonical_metadata[[var]])) {
+      # Create bins for numeric variables
+      df_count <- canonical_metadata %>%
+        filter(!is.na(.data[[var]])) %>%
+        mutate(
+          var_binned = case_when(
+            var == "yob" ~ paste0(floor(.data[[var]]/10)*10, "s"),
+            var == "diagnosis_age" ~ paste0(floor(.data[[var]]/10)*10, "s"),
+            TRUE ~ as.character(.data[[var]])
+          ),
+          # Create numeric ordering column for temporal variables
+          order_value = case_when(
+            var == "yob" ~ floor(.data[[var]]/10)*10,
+            var == "diagnosis_age" ~ floor(.data[[var]]/10)*10,
+            TRUE ~ NA_real_
+          )
+        ) %>%
+        count(var_binned, order_value) %>%
+        mutate(
+          pct = n / sum(n) * 100,
+          label = ifelse(pct < 5, "<5%", paste0(round(pct), "%"))
+        ) %>%
+        arrange(order_value)  # Order by the numeric value instead of count
+    } else {
+      # Handle categorical variables
+      df_count <- canonical_metadata %>%
+        filter(!is.na(.data[[var]]), .data[[var]] != "") %>%
+        count(.data[[var]]) %>%
+        mutate(
+          pct = n / sum(n) * 100,
+          var_binned = .data[[var]],
+          order_value = NA_real_  # No ordering for categorical
+        ) %>%
+        arrange(desc(n))
+      
+      # For disease group variables, keep only top 10 and combine rest
+      if (var %in% c("normalised_disease_group", "normalised_disease_sub_group")) {
+        if (nrow(df_count) > 10) {
+          top_10 <- df_count[1:10, ]
+          rest_count <- sum(df_count[11:nrow(df_count), ]$n)
+          rest_pct <- sum(df_count[11:nrow(df_count), ]$pct)
+          
+          rest_row <- data.frame(
+            tmp = "REST, other groups or combinations",
+            n = rest_count,
+            pct = rest_pct,
+            var_binned = "REST, other groups or combinations",
+            order_value = NA_real_,
+            stringsAsFactors = FALSE
+          )
+          names(rest_row)[1] <- var
+          
+          df_count <- rbind(top_10, rest_row)
+        }
+      }
+      
+      # Add percentage labels
+      df_count <- df_count %>%
+        mutate(label = ifelse(pct < 5, "<5%", paste0(round(pct), "%")))
+    }
+    
+    if (nrow(df_count) == 0) next
+    
+    # Calculate maximum label length for this variable
+    max_label_length <- max(nchar(as.character(df_count$var_binned)), na.rm = TRUE)
+    
+    # Calculate y-axis limit to accommodate labels
+    max_pct <- max(df_count$pct)
+    y_limit <- max_pct * 1.15
+    
+    # Create plot with appropriate ordering
+    if (var %in% c("yob", "diagnosis_age")) {
+      # For temporal variables, order by numeric value (chronological order)
+      p <- ggplot(df_count, aes(x = reorder(var_binned, order_value), y = pct, fill = var_binned)) +
+        geom_col(show.legend = FALSE, alpha = 0.8) +
+        geom_text(aes(label = label), vjust = -0.5, size = 3) +
+        labs(x = "", y = "Perc. of Participants") +
+        ggtitle(paste(var, "(n =", sum(df_count$n), ")")) +
+        ylim(0, y_limit) +
+        theme_minimal() +
+        theme(
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+          plot.title = element_text(size = 11, hjust = 0.5, margin = margin(b = 10)),
+          panel.grid.minor = element_blank()
+        )
+    } else if (var %in% c("normalised_disease_group", "normalised_disease_sub_group")) {
+      # Special handling for disease group variables - REST group first, then by frequency
+      df_count <- df_count %>%
+        mutate(
+          is_rest = var_binned == "REST, other groups or combinations",
+          sort_order = ifelse(is_rest, Inf, -pct)  # REST gets highest value, others by negative pct (desc)
+        ) %>%
+        arrange(sort_order)
+      
+      p <- ggplot(df_count, aes(x = factor(var_binned, levels = var_binned), y = pct, fill = var_binned)) +
+        geom_col(show.legend = FALSE, alpha = 0.8) +
+        geom_text(aes(label = label), vjust = -0.5, size = 3) +
+        labs(x = "", y = "Perc. of Participants") +
+        ggtitle(paste(var, "(n =", sum(df_count$n), ")")) +
+        ylim(0, y_limit) +
+        theme_minimal() +
+        theme(
+          axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 9),  # Changed to vertical labels
+          plot.title = element_text(size = 11, hjust = 0.5, margin = margin(b = 10)),
+          panel.grid.minor = element_blank()
+        )
+    } else {
+      # For other categorical variables, order by frequency (descending)
+      p <- ggplot(df_count, aes(x = reorder(var_binned, -pct), y = pct, fill = var_binned)) +
+        geom_col(show.legend = FALSE, alpha = 0.8) +
+        geom_text(aes(label = label), vjust = -0.5, size = 3) +
+        labs(x = "", y = "Perc. of Participants") +
+        ggtitle(paste(var, "(n =", sum(df_count$n), ")")) +
+        ylim(0, y_limit) +
+        theme_minimal() +
+        theme(
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+          plot.title = element_text(size = 11, hjust = 0.5, margin = margin(b = 10)),
+          panel.grid.minor = element_blank()
+        )
+    }
+    
+    # Store plot with its maximum label length
+    plot_list[[var]] <- list(plot = p, max_label_length = max_label_length)
+  }
+  
+  # Remove NULL plots
+  plot_list <- plot_list[!sapply(plot_list, is.null)]
+  
+  if (length(plot_list) > 0) {
+    # Separate plots by label length
+    short_label_plots <- list()
+    long_label_plots <- list()
+    
+    for (var_name in names(plot_list)) {
+      if (plot_list[[var_name]]$max_label_length <= 25) {
+        short_label_plots[[var_name]] <- plot_list[[var_name]]$plot
+      } else {
+        long_label_plots[[var_name]] <- plot_list[[var_name]]$plot
+      }
+    }
+    
+    # Create PDF with all barplots on the same page using grid functions
+    pdf_file <- paste0(gene_name, "_CanonicalVar_PartMetadata_Barplots.pdf")
+    pdf(pdf_file, width = 12, height = 16)
+    
+    # Create a single page with both grids
+    grid.newpage()
+    
+    # Add main title for the entire page
+    grid.text(paste0("Participant Distribution for ", gene_name, " (", nrow(canonical_variants), " Canonical Variants)"),
+              x = 0.5, y = 0.97, 
+              gp = gpar(fontsize = 16, fontface = "bold"))
+    
+    # FIRST GRID: Short label variables (≤25 characters) - Upper part
+    if (length(short_label_plots) > 0) {
+      # Add section title for short labels - moved up
+      grid.text(paste0("General Participant Characteristics (", nrow(canonical_metadata), ")"),
+                x = 0.5, y = 0.93,  # Moved from 0.89 to 0.93
+                gp = gpar(fontsize = 14, fontface = "bold"))
+      
+      # Calculate grid layout (3 columns for short labels)
+      n_short_plots <- length(short_label_plots)
+      ncol_short <- 3
+      nrow_short <- ceiling(n_short_plots / ncol_short)
+      
+      # Define viewport dimensions for upper half - increased height
+      plot_width_short <- 1 / ncol_short
+      plot_height_short <- 0.48 / nrow_short 
+      
+      # Create viewports and print plots for short labels
+      for (i in seq_along(short_label_plots)) {
+        row_idx <- ceiling(i / ncol_short)
+        col_idx <- ((i - 1) %% ncol_short) + 1
+        
+        # Calculate viewport position (upper half) - adjusted starting position
+        x_pos <- (col_idx - 0.5) * plot_width_short
+        y_pos <- 0.89 - (row_idx - 0.5) * plot_height_short 
+        
+        # Create viewport
+        vp <- viewport(x = x_pos, y = y_pos, 
+                       width = plot_width_short * 0.95, 
+                       height = plot_height_short * 0.95)
+        
+        # Print plot in viewport
+        print(short_label_plots[[i]], vp = vp)
+      }
+    }
+    
+    # SECOND GRID: Long label variables (>25 characters) - Lower part
+    if (length(long_label_plots) > 0) {
+      # Add section title for long labels - moved down
+      grid.text("Disease Group Characteristics",
+                x = 0.5, y = 0.38,  # Moved from 0.45 to 0.38
+                gp = gpar(fontsize = 14, fontface = "bold"))
+      
+      # Calculate grid layout (2 columns for long labels to give more space)
+      n_long_plots <- length(long_label_plots)
+      ncol_long <- 2
+      nrow_long <- ceiling(n_long_plots / ncol_long)
+      
+      # Define viewport dimensions for lower half - reduced height
+      plot_width_long <- 1 / ncol_long
+      plot_height_long <- 0.32 / nrow_long  # Reduced from 0.38 to 0.32
+      
+      # Create viewports and print plots for long labels
+      for (i in seq_along(long_label_plots)) {
+        row_idx <- ceiling(i / ncol_long)
+        col_idx <- ((i - 1) %% ncol_long) + 1
+        
+        # Calculate viewport position (lower half) - moved down
+        x_pos <- (col_idx - 0.5) * plot_width_long
+        y_pos <- 0.34 - (row_idx - 0.5) * plot_height_long  # Moved from 0.41 to 0.34
+        
+        # Create viewport
+        vp <- viewport(x = x_pos, y = y_pos, 
+                       width = plot_width_long * 0.95, 
+                       height = plot_height_long * 0.95)
+        
+        # Print plot in viewport
+        print(long_label_plots[[i]], vp = vp)
+      }
+    }
+    
+    dev.off()
+    
+    cat("Generated:", pdf_file, "\n")
+    cat("Short label variables (≤25 chars):", length(short_label_plots), "\n")
+    cat("Long label variables (>25 chars):", length(long_label_plots), "\n")
+  } else {
+    cat("No valid plots generated for canonical variants metadata\n")
+  }
+} else {
+  cat("No canonical variants found in the data\n")
+}
+
 
 cat("Plots generated successfully for gene:", gene_name, "\n")
