@@ -10,15 +10,13 @@ part_metadata_file    <- args[3]   # TSV file with participant metadata
 # Libraries  -------------------------------------------------------------------
 library(tidyverse)
 
-
 # Settings ----------------------------------------------------------------------
 set.seed(23)
 
-
 # Load gene annotated variant file ---------------------------------------------
 variant_table <- readRDS(clean_smallvar_file)
-participant_metadata <- read.table(part_metadata_file, sep = "\t", header = TRUE, 
-                                  stringsAsFactors = FALSE, quote = "")
+participant_metadata <- readRDS(part_metadata_file)
+
 
 # Function to count unique participants ----------------------------------------
 count_unique_participants <- function(variant_df, metadata_df) {

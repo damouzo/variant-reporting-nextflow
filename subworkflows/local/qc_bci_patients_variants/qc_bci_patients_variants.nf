@@ -102,14 +102,8 @@ workflow QC_BCI_PATIENTS_VARIANTS {
         }
 
     metadata_plot_input_ch = compareBCIwithGEvar.out.BciVsGe_rds
-    .join(cleanFormatBciPatientsVar.out.clean_rds)  // [gene_name, comparison_rds, bci_rds]
-    .map { gene_name, comparison_rds, bci_rds -> 
-        tuple(gene_name, comparison_rds, bci_rds)
-    }
-    .combine(part_metadata_ch)  // [gene_name, comparison_rds, bci_rds, metadata_file]
-    .filter { gene_name, _comparison_rds, _bci_rds, metadata_file -> 
-        metadata_file.name.contains(gene_name)
-    }
+    .join(cleanFormatBciPatientsVar.out.clean_rds) 
+    .join(part_metadata_ch)  
     .map { gene_name, comparison_rds, bci_rds, metadata_file -> 
         tuple(gene_name, comparison_rds, bci_rds, metadata_file)
     }

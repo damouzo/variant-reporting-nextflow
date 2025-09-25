@@ -2026,7 +2026,7 @@ protein_info <- rtracklayer::import(prot_file)
 exon_info <- read_tsv(exon_file)
 
 ## Participant Metadata
-metadata_info <- read_tsv(p_metadata_file)
+metadata_info <- readRDS(p_metadata_file)
 
 
 

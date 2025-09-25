@@ -63,7 +63,7 @@ workflow {
         bci_patients_var_ch,
         gene_list_ch,
         QC_SMALL_VARIANTS.out.clean_rds,
-        QC_SMALL_VARIANTS.out.partMet
+        QC_SMALL_VARIANTS.out.partMet_rds
     )
     
 

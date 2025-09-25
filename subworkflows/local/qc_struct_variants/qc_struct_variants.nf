@@ -136,9 +136,11 @@ workflow QC_STRUCT_VARIANTS {
     clean_sv_tables       = sv_clean_ch.map { gene, file -> tuple(file, gene) }  
     partID_txt            = params.enable_sql_queries ? extractStructVarPartID.out.partID_txt : Channel.empty()
     partMet_tsv           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_tsv : Channel.empty()
-    partMet_rds           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_rds : Channel.empty()  // ← AÑADIR ESTA LÍNEA
+    partMet_rds           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_rds : Channel.empty()
     filtered_clean_tsv    = filterStructVar.out.filtered_clean_tsv     
     plot_files            = plotQCstructVar.out.plots
     versions              = ch_versions
 }
+
+
 

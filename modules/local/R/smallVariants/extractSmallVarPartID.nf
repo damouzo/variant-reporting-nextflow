@@ -11,8 +11,9 @@ process extractSmallVarPartID {
         val labkey_main
 
     output:
-        path("${gene_name}_small_variants_participantID.txt"), emit: partID
-        path("${gene_name}_small_variants_participantMetadata.tsv"), emit: partMet
+        tuple val(gene_name), path("${gene_name}_small_variants_participantMetadata.rds"), emit: partMet_rds
+        path("${gene_name}_small_variants_participantMetadata.tsv"), emit: partMet_tsv
+        path("${gene_name}_small_variants_participantID.txt"), emit: partID_txt
         path "versions.yml", emit: versions
 
     script:

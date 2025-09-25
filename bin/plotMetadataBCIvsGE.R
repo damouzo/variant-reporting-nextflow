@@ -52,7 +52,7 @@ comparison_data <- readRDS(comparison_file)
 bci_clean_data <- readRDS(bci_clean_file)
 
 # Metadata from GE
-metadata <- read_tsv(metadata_file)
+metadata <- readRDS(metadata_file)
 
 
 
