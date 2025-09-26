@@ -2276,14 +2276,23 @@ for (subset_config in variant_subsets) {
 
 
 # Metadata Distribution Plots ------------------------------------------------
-# Filter for canonical variants
-canonical_variants <- variants_table %>% filter(CANONICAL_annotation == "YES")
+# Get unique ClinVar categories
+clinvar_categories <- unique(variants_table$clinvar_category)
+clinvar_categories <- clinvar_categories[!is.na(clinvar_categories) & clinvar_categories != ""]
 
-if (nrow(canonical_variants) > 0) {
-  cat("Processing metadata for", nrow(canonical_variants), "canonical variants...\n")
+cat("Found ClinVar categories:", paste(clinvar_categories, collapse = ", "), "\n")
+
+# Function to create metadata plots for a given dataset
+create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
+  if (nrow(variant_data) == 0) {
+    cat("No data available for", title_suffix, "\n")
+    return(NULL)
+  }
   
-  # Extract all samples from canonical variants
-  all_samples <- canonical_variants %>%
+  cat("Processing metadata for", nrow(variant_data), title_suffix, "variants...\n")
+  
+  # Extract all unique samples from the Het_samples, Hom_samples, Hemi_samples columns
+  all_samples <- variant_data %>%
     rowwise() %>%
     mutate(
       samples_all = paste(Het_samples, Hom_samples, Hemi_samples, sep = ","),
@@ -2299,18 +2308,26 @@ if (nrow(canonical_variants) > 0) {
     unique() %>%
     .[. != "" & !is.na(.)]
   
-  cat("Found", length(all_samples), "unique samples with canonical variants\n")
+  cat("Found", length(all_samples), "unique samples with", title_suffix, "variants\n")
   
-  # Match samples to participant metadata
-  canonical_metadata <- metadata_info %>%
-  filter(plate_key %in% all_samples) %>%
-  mutate(
-    diagnosis_age = case_when(
-      !is.na(cancer_diagnosis_age) ~ as.numeric(as.character(cancer_diagnosis_age)),
-      !is.na(rare_disease_diagnosis_age) ~ as.numeric(as.character(rare_disease_diagnosis_age)),
-      TRUE ~ NA_real_
+  # Match samples to participant metadata and ensure unique participants
+  variant_metadata <- metadata_info %>%
+    filter(plate_key %in% all_samples) %>%
+    distinct(participant_id, .keep_all = TRUE) %>%  # Keep only unique participants
+    mutate(
+      diagnosis_age = case_when(
+        !is.na(cancer_diagnosis_age) ~ as.numeric(as.character(cancer_diagnosis_age)),
+        !is.na(rare_disease_diagnosis_age) ~ as.numeric(as.character(rare_disease_diagnosis_age)),
+        TRUE ~ NA_real_
+      )
     )
-  )
+  
+  cat("Matched to", nrow(variant_metadata), "unique participants\n")
+  
+  if (nrow(variant_metadata) == 0) {
+    cat("No participant metadata found for", title_suffix, "variants\n")
+    return(NULL)
+  }
   
   # Variables of interest for barplots
   vars_of_interest <- c("participant_type", "affection_status", "programme",
@@ -2321,29 +2338,31 @@ if (nrow(canonical_variants) > 0) {
   plot_list <- list()
   
   for (var in vars_of_interest) {
-    if (!var %in% colnames(canonical_metadata)) {
+    if (!var %in% colnames(variant_metadata)) {
       cat("Warning: Variable", var, "not found in metadata. Skipping...\n")
       next
     }
     
     # Handle variables depending on type
-    if (is.numeric(canonical_metadata[[var]])) {
-      # Create bins for numeric variables
-      df_count <- canonical_metadata %>%
-        filter(!is.na(.data[[var]])) %>%
+    if (is.numeric(variant_metadata[[var]]) || var %in% c("yob", "diagnosis_age")) {
+      # Create bins for numeric variables - ensure proper numeric conversion
+      df_count <- variant_metadata %>%
+        filter(!is.na(.data[[var]]), .data[[var]] != "") %>%
         mutate(
+          numeric_var = as.numeric(as.character(.data[[var]])),  # Force numeric conversion
           var_binned = case_when(
-            var == "yob" ~ paste0(floor(.data[[var]]/10)*10, "s"),
-            var == "diagnosis_age" ~ paste0(floor(.data[[var]]/10)*10, "s"),
-            TRUE ~ as.character(.data[[var]])
+            var == "yob" ~ paste0(floor(numeric_var/10)*10, "s"),
+            var == "diagnosis_age" ~ paste0(floor(numeric_var/10)*10, "s"),
+            TRUE ~ as.character(numeric_var)
           ),
           # Create numeric ordering column for temporal variables
           order_value = case_when(
-            var == "yob" ~ floor(.data[[var]]/10)*10,
-            var == "diagnosis_age" ~ floor(.data[[var]]/10)*10,
-            TRUE ~ NA_real_
+            var == "yob" ~ floor(numeric_var/10)*10,
+            var == "diagnosis_age" ~ floor(numeric_var/10)*10,
+            TRUE ~ numeric_var
           )
         ) %>%
+        filter(!is.na(numeric_var)) %>%  # Remove rows where conversion failed
         count(var_binned, order_value) %>%
         mutate(
           pct = n / sum(n) * 100,
@@ -2352,7 +2371,7 @@ if (nrow(canonical_variants) > 0) {
         arrange(order_value)  # Order by the numeric value instead of count
     } else {
       # Handle categorical variables
-      df_count <- canonical_metadata %>%
+      df_count <- variant_metadata %>%
         filter(!is.na(.data[[var]]), .data[[var]] != "") %>%
         count(.data[[var]]) %>%
         mutate(
@@ -2390,7 +2409,17 @@ if (nrow(canonical_variants) > 0) {
     
     if (nrow(df_count) == 0) next
     
-    # Calculate maximum label length for this variable
+    # Truncate labels that are 50+ characters
+    df_count <- df_count %>%
+      mutate(
+        var_binned = ifelse(
+          nchar(as.character(var_binned)) >= 50,
+          paste0(substr(as.character(var_binned), 1, 47), "..."),
+          as.character(var_binned)
+        )
+      )
+    
+    # Calculate maximum label length for this variable (after truncation)
     max_label_length <- max(nchar(as.character(df_count$var_binned)), na.rm = TRUE)
     
     # Calculate y-axis limit to accommodate labels
@@ -2461,30 +2490,31 @@ if (nrow(canonical_variants) > 0) {
     short_label_plots <- list()
     long_label_plots <- list()
     
-    for (var_name in names(plot_list)) {
-      if (plot_list[[var_name]]$max_label_length <= 25) {
-        short_label_plots[[var_name]] <- plot_list[[var_name]]$plot
-      } else {
+    for (var_name in names(plot_list) ) {
+      # Force both disease group variables to always go to long label plots
+      if (var_name %in% c("normalised_disease_group", "normalised_disease_sub_group") || plot_list[[var_name]]$max_label_length > 25) {
         long_label_plots[[var_name]] <- plot_list[[var_name]]$plot
+      } else {
+        short_label_plots[[var_name]] <- plot_list[[var_name]]$plot
       }
     }
     
     # Create PDF with all barplots on the same page using grid functions
-    pdf_file <- paste0(gene_name, "_Filtered_PartMetadata_Barplots.pdf")
+    pdf_file <- paste0(gene_name, "_Filtered_", filename_suffix, "_PartMetadata_Barplots.pdf")
     pdf(pdf_file, width = 12, height = 16)
     
     # Create a single page with both grids
     grid.newpage()
     
     # Add main title for the entire page
-    grid.text(paste0("Participant Distribution for ", gene_name, " (", nrow(canonical_variants), " Canonical Variants)"),
+    grid.text(paste0("Participant Distribution for ", gene_name, " (", nrow(variant_data), " ", title_suffix, " Variants)"),
               x = 0.5, y = 0.97, 
               gp = gpar(fontsize = 16, fontface = "bold"))
     
     # FIRST GRID: Short label variables (≤25 characters) - Upper part
     if (length(short_label_plots) > 0) {
       # Add section title for short labels - moved up
-      grid.text(paste0("General Participant Characteristics (", nrow(canonical_metadata), ")"),
+      grid.text(paste0("General Participant Characteristics (", nrow(metadata_info), ")"),
                 x = 0.5, y = 0.93,  # Moved from 0.89 to 0.93
                 gp = gpar(fontsize = 14, fontface = "bold"))
       
@@ -2557,11 +2587,37 @@ if (nrow(canonical_variants) > 0) {
     cat("Short label variables (≤25 chars):", length(short_label_plots), "\n")
     cat("Long label variables (>25 chars):", length(long_label_plots), "\n")
   } else {
-    cat("No valid plots generated for canonical variants metadata\n")
+    cat("No valid plots generated for", title_suffix, "metadata\n")
   }
-} else {
-  cat("No canonical variants found in the data\n")
+  
+  return(variant_metadata)
 }
+
+# Process each ClinVar category separately
+for (clinvar_cat in clinvar_categories) {
+  cat("\n--- Processing", clinvar_cat, "variants ---\n")
+  
+  # Filter variants for this specific category
+  clinvar_cat_variants <- variants_table %>% 
+    filter(clinvar_category == clinvar_cat)
+  
+  # Create metadata plots for this ClinVar category
+  create_metadata_plots(
+    variant_data = clinvar_cat_variants,
+    title_suffix = clinvar_cat,
+    filename_suffix = clinvar_cat
+  )
+}
+
+# Create combined analysis for all small variants (canonical only)
+cat("\n--- Processing Canonical Small Variants ---\n")
+canonical_variants <- variants_table %>% filter(CANONICAL_annotation == "YES")
+
+create_metadata_plots(
+  variant_data = canonical_variants,
+  title_suffix = "Canonical",
+  filename_suffix = "CanonicalVar"
+)
 
 
 cat("Plots generated successfully for gene:", gene_name, "\n")

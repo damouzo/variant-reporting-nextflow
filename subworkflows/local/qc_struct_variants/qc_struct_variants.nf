@@ -1,4 +1,4 @@
-// qc_struct_variant.nf
+// qc_struct_variants.nf
 
 include { cleanFormatStructVar_SV } from '../../../modules/local/R/structVariants/cleanFormatStructVar_SV.nf'
 include { cleanFormatStructVar_CNV } from '../../../modules/local/R/structVariants/cleanFormatStructVar_CNV.nf'

@@ -2297,16 +2297,17 @@ if (nrow(canonical_variants) > 0) {
   
   cat("Found", length(all_samples), "unique samples with canonical variants\n")
   
-  # Match samples to participant metadata
+  # Match samples to participant metadata and ensure unique participants
   canonical_metadata <- metadata_info %>%
-  filter(plate_key %in% all_samples) %>%
-  mutate(
-    diagnosis_age = case_when(
-      !is.na(cancer_diagnosis_age) ~ as.numeric(as.character(cancer_diagnosis_age)),
-      !is.na(rare_disease_diagnosis_age) ~ as.numeric(as.character(rare_disease_diagnosis_age)),
-      TRUE ~ NA_real_
+    filter(plate_key %in% all_samples) %>%
+    distinct(participant_id, .keep_all = TRUE) %>%  # Keep only unique participants
+    mutate(
+      diagnosis_age = case_when(
+        !is.na(cancer_diagnosis_age) ~ as.numeric(as.character(cancer_diagnosis_age)),
+        !is.na(rare_disease_diagnosis_age) ~ as.numeric(as.character(rare_disease_diagnosis_age)),
+        TRUE ~ NA_real_
+      )
     )
-  )
   
   # Variables of interest for barplots
   vars_of_interest <- c("participant_type", "affection_status", "programme",
@@ -2323,23 +2324,25 @@ if (nrow(canonical_variants) > 0) {
     }
     
     # Handle variables depending on type
-    if (is.numeric(canonical_metadata[[var]])) {
-      # Create bins for numeric variables
+    if (is.numeric(canonical_metadata[[var]]) || var %in% c("yob", "diagnosis_age")) {
+      # Create bins for numeric variables - ensure proper numeric conversion
       df_count <- canonical_metadata %>%
-        filter(!is.na(.data[[var]])) %>%
+        filter(!is.na(.data[[var]]), .data[[var]] != "") %>%
         mutate(
+          numeric_var = as.numeric(as.character(.data[[var]])),  # Force numeric conversion
           var_binned = case_when(
-            var == "yob" ~ paste0(floor(.data[[var]]/10)*10, "s"),
-            var == "diagnosis_age" ~ paste0(floor(.data[[var]]/10)*10, "s"),
-            TRUE ~ as.character(.data[[var]])
+            var == "yob" ~ paste0(floor(numeric_var/10)*10, "s"),
+            var == "diagnosis_age" ~ paste0(floor(numeric_var/10)*10, "s"),
+            TRUE ~ as.character(numeric_var)
           ),
           # Create numeric ordering column for temporal variables
           order_value = case_when(
-            var == "yob" ~ floor(.data[[var]]/10)*10,
-            var == "diagnosis_age" ~ floor(.data[[var]]/10)*10,
-            TRUE ~ NA_real_
+            var == "yob" ~ floor(numeric_var/10)*10,
+            var == "diagnosis_age" ~ floor(numeric_var/10)*10,
+            TRUE ~ numeric_var
           )
         ) %>%
+        filter(!is.na(numeric_var)) %>%  # Remove rows where conversion failed
         count(var_binned, order_value) %>%
         mutate(
           pct = n / sum(n) * 100,
@@ -2386,7 +2389,17 @@ if (nrow(canonical_variants) > 0) {
     
     if (nrow(df_count) == 0) next
     
-    # Calculate maximum label length for this variable
+    # Truncate labels that are 50+ characters
+    df_count <- df_count %>%
+      mutate(
+        var_binned = ifelse(
+          nchar(as.character(var_binned)) >= 50,
+          paste0(substr(as.character(var_binned), 1, 47), "..."),
+          as.character(var_binned)
+        )
+      )
+    
+    # Calculate maximum label length for this variable (after truncation)
     max_label_length <- max(nchar(as.character(df_count$var_binned)), na.rm = TRUE)
     
     # Calculate y-axis limit to accommodate labels
@@ -2458,10 +2471,11 @@ if (nrow(canonical_variants) > 0) {
     long_label_plots <- list()
     
     for (var_name in names(plot_list)) {
-      if (plot_list[[var_name]]$max_label_length <= 25) {
-        short_label_plots[[var_name]] <- plot_list[[var_name]]$plot
-      } else {
+      # Force both disease group variables to always go to long label plots
+      if (var_name %in% c("normalised_disease_group", "normalised_disease_sub_group") || plot_list[[var_name]]$max_label_length > 25) {
         long_label_plots[[var_name]] <- plot_list[[var_name]]$plot
+      } else {
+        short_label_plots[[var_name]] <- plot_list[[var_name]]$plot
       }
     }
     
