@@ -3,9 +3,9 @@
 
 # Arguments --------------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-gene_name        <- args[1]  # "DDX41"
-vep_annot_file   <- args[2]  # "/mnt/c/scratch/2e/56b66f4d4935c698b3dac8bc29f26b/DDX41_vep_output.txt"
-variant_file     <- args[3]  # "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/raw_data/BCI_patients/250829_DDX41_patients_var_data.tsv"
+gene_name        <- args[1]  # "DHX34"
+vep_annot_file   <- args[2]  # "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/results/DHX34/DHX34_bci_patients_vep_output.txt"
+variant_file     <- args[3]  # 
 
 # Libraries  -------------------------------------------------------------------
 library(tidyverse)
@@ -28,7 +28,7 @@ vep_table <- read_tsv(vep_annot_file, comment = "##", na = c("-", ""),
 # Clean tables -------------------------------------------------------------------
 # Vep table output
 vep_table <- vep_table %>%
-  rename(Uploaded_variation = `#Uploaded_variation`) %>%        # quita el '#'
+  rename(Uploaded_variation = `#Uploaded_variation`) %>%      
   mutate(
     IMPACT = factor(IMPACT, ordered = TRUE,
             levels = c("HIGH", "MODERATE", "LOW", "MODIFIER")))
@@ -37,14 +37,18 @@ vep_table <- vep_table %>%
 variant_table <- variant_table %>%
     mutate(
         Uploaded_variation = ifelse(is.na(Transcript) | Transcript == "-",  NA,
-                             paste0(gsub("\\..*", ":", Transcript), cDNA_Change_HGVS_c.)))
+                             paste0(Transcript, ":", cDNA_Change_HGVS_c)))
 
 
 # Join vep annotations with patient data ---------------------------------------
-annot_var_table <- vep_table %>%
-  inner_join(variant_table, by = "Uploaded_variation") %>%
-  rename(Variant = Uploaded_variation)
+annot_var_table <- variant_table %>%
+  left_join(vep_table, by = "Uploaded_variation") %>%
+  rename(Variant = Uploaded_variation) %>%
+  distinct()
 
+# Work only with Canonical transcripts
+annot_var_table <- annot_var_table %>%
+  filter(CANONICAL == "YES")
 
 # Print summary ----------------------------------------------------------------
 cat("\nGlimpse of table data of Variants \n")

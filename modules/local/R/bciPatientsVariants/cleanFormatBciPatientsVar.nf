@@ -7,7 +7,7 @@ process cleanFormatBciPatientsVar {
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
 
     input:
-        tuple val(gene_name), path(vep_output), path(original_data)
+        tuple val(gene_name), path(vep_output), path(normalized_data)
 
     output:
         path("${gene_name}_bci_patients_variants.tsv"), emit: clean_tsv
@@ -17,7 +17,7 @@ process cleanFormatBciPatientsVar {
     script:
     """
     echo "Processing: ${gene_name} with BCI patients variants file: ${vep_output}"
-    cleanFormatBciPatientsVar.R ${gene_name} ${vep_output} ${original_data}
+    cleanFormatBciPatientsVar.R ${gene_name} ${vep_output} ${normalized_data}
 
     # Check output files created
     if [ ! -f "${gene_name}_bci_patients_variants.tsv" ]; then

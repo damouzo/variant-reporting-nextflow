@@ -7,10 +7,10 @@ if (length(args) != 4) {
   stop("script.R <clean_table> <gene_name> <prot_file> <exon_file>")
 }
 
-clean_table     <- args[1] # "C:/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/results/DDX41/DDX41_bci_patients_variants.rds"
-gene_name       <- args[2] # "DDX41"
-prot_file       <- args[3] # "C:/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/reference/Protein/DDX41.gff"
-exon_file       <- args[4] # "C:/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/reference/Exon/DDX41.tsv"
+clean_table     <- args[1] # "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/results/DHX34/DHX34_bci_patients_variants.rds"
+gene_name       <- args[2] # "DHX34"
+prot_file       <- args[3] # "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/reference/Protein/DHX34.gff"
+exon_file       <- args[4] # "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/reference/Exon/DHX34.tsv"
 
 # Message validation files
 cat("Validating input files for gene:", gene_name, "\n")
@@ -2027,6 +2027,8 @@ exon_info <- read_tsv(exon_file)
 df_data <- variants_table %>%
   filter(CANONICAL == "YES") %>%
   filter(!is.na(Protein_position)) %>%
+  mutate(Protein_pos_start = as.numeric(str_extract(Protein_position, "\\d+"))) %>%
+  mutate(Exon_pos_start = as.numeric(str_extract(gsub(".*:","",Location), "\\d+"))) %>%
   mutate(LabelVarPlot = ifelse(grepl("^(rs|COSV)", Existing_variation, ignore.case = TRUE), Existing_variation, Variant))
   
 subset_label <- "Canonical"
@@ -2050,12 +2052,13 @@ names(features_prot) <- features_prot$Note
 
 # Create variants GRanges
 prot.gr <- GRanges(seqnames = paste0(unique(seqnames(features_prot))), 
-                     ranges = IRanges(start = df_data$Protein_position, width = 1, 
-                                      names = df_data$LabelVarPlot))
+                   ranges = IRanges(start = as.numeric(df_data$Protein_pos_start), width = 1, 
+                                    names = df_data$LabelVarPlot))
 
 # Prepare variant properties
-prot.gr$node.label <- as.character(gsub("-.*", "", df_data$Patient_REF))
-prot.gr$node.label <- as.character(gsub("P", "", prot.gr$node.label))
+prot.gr$node.label <- as.character(df_data$Patient_REF)
+prot.gr$node.label <- as.character(prot.gr$node.label)
+prot.gr$node.label.cex <- 0.5
 prot.gr$Consequence <- df_data$Consequence            
 prot.gr$color <- setNames(pastel_colors, unique(prot.gr$Consequence))[prot.gr$Consequence]
 legends_prot <- list(labels=unique(prot.gr$Consequence), fill=unique(prot.gr$color))
@@ -2066,8 +2069,8 @@ prot.gr$shape <- ifelse(grepl("^(rs|COSV)", names(prot.gr)), "circle", "diamond"
 exon_info$Exon_Num <- paste0("Exon ", seq_len(nrow(exon_info)))
 features_exon <- GRanges(
   seqnames = exon_info$Isoform, 
-  ranges   = IRanges(start = exon_info$ExonStart,
-                     end   = exon_info$ExonEnd,
+  ranges   = IRanges(start = as.numeric(exon_info$ExonStart),
+                     end   = as.numeric(exon_info$ExonEnd),
                      names = exon_info$Exon_Num
   ))
 
@@ -2078,11 +2081,12 @@ features_exon$fill <- note_colors[features_exon$Note]
 
 # Create exon variants GRanges
 exon.gr <- GRanges(seqnames = paste0(unique(seqnames(features_exon))), 
-                   ranges = IRanges(start = as.numeric(gsub(".*:","",df_data$Location)), width = 1, 
+                   ranges = IRanges(start = as.numeric(df_data$Exon_pos_start), width = 1, 
                                     names = df_data$LabelVarPlot))
 
-exon.gr$node.label <- as.character(gsub("-.*", "", df_data$Patient_REF))
-exon.gr$node.label <- as.character(gsub("P", "", exon.gr$node.label))
+exon.gr$node.label <- as.character(df_data$Patient_REF)
+exon.gr$node.label <- as.character(exon.gr$node.label)
+exon.gr$node.label.cex <- 0.5
 exon.gr$Consequence <- df_data$Consequence            
 exon.gr$color <- setNames(pastel_colors, unique(exon.gr$Consequence))[exon.gr$Consequence]
 legends_exon <- list(labels=unique(exon.gr$Consequence), fill=unique(exon.gr$color))

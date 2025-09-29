@@ -1,12 +1,11 @@
 // qc_bci_patients_variants.nf
 
-include { TSV_TO_VEP_INPUT } from '../../../modules/local/VEP/TSV_TO_VEP_INPUT.nf'
+include { normalizeCombineTSV } from '../../../modules/local/R/bciPatientsVariants/normalizeCombineTSV.nf'
 include { VEP_ANNOTATE_TABULAR } from '../../../modules/local/VEP/VEP_ANNOTATE_TABULAR.nf'
 include { cleanFormatBciPatientsVar } from '../../../modules/local/R/bciPatientsVariants/cleanFormatBciPatientsVar.nf'
 include { compareBCIwithGEvar } from '../../../modules/local/R/bciPatientsVariants/compareBCIwithGEvar.nf'
 include { plotQCBciPatientsVar } from '../../../modules/local/R/bciPatientsVariants/plotQCBciPatientsVar.nf'
 include { plotMetadataBCIvsGE } from '../../../modules/local/R/bciPatientsVariants/plotMetadataBCIvsGE.nf'
-
 
 
 workflow QC_BCI_PATIENTS_VARIANTS {
@@ -30,26 +29,30 @@ workflow QC_BCI_PATIENTS_VARIANTS {
         log.info "Using VEP annotation workflow for BCI patients variants"
         
         // Prepare input for conversion to VEP format
-        convert_input_ch = bci_patients_var_ch
+        normalize_input_ch = bci_patients_var_ch
             .combine(gene_list_ch)
             .filter { file, gene -> file.name.contains(gene) }
-            .map { file, gene -> tuple(file, gene) }
+            .map { file, gene -> tuple(gene, file) }
+            .groupTuple()   // Groups files by gene: [gene, [file1, file2, ...]]
+
+        // Normalize and combine BCI patients variants
+        normalizeCombineTSV(normalize_input_ch)
 
         // Convert tabular data to VEP input format
-        TSV_TO_VEP_INPUT(convert_input_ch)
+        //TSV_TO_VEP_INPUT(normalizeCombineTSV.out.normalized_tsv)
 
         // RUN VEP annotation
-        VEP_ANNOTATE_TABULAR(TSV_TO_VEP_INPUT.out.vep_input)
+        VEP_ANNOTATE_TABULAR(normalizeCombineTSV.out.vep_input)
 
         // Merge VEP annotations with original data
         merge_input_ch = VEP_ANNOTATE_TABULAR.out.vep_output
-            .join(TSV_TO_VEP_INPUT.out.original_data)
+            .join(normalizeCombineTSV.out.normalized_tsv)
 
         // RUN Clean and format BCI patients variants
         cleanFormatBciPatientsVar(merge_input_ch)
 
         // Collect VEP versions
-        ch_versions = ch_versions.mix(TSV_TO_VEP_INPUT.out.versions)
+        ch_versions = ch_versions.mix(normalizeCombineTSV.out.versions)
         ch_versions = ch_versions.mix(VEP_ANNOTATE_TABULAR.out.versions)
 
     } else {
@@ -64,15 +67,15 @@ workflow QC_BCI_PATIENTS_VARIANTS {
             .map { file, gene -> tuple(gene, file) }
 
         // Create channels for original files  
-        original_files_ch = Channel
-            .fromPath("${params.bci_annotated_dir}/*_patients_var_data.tsv")
+        normalized_files_ch = Channel
+            .fromPath("${params.bci_annotated_dir}/*_normalized_combined_data.tsv")
             .combine(gene_list_ch)
             .filter { file, gene -> file.name.contains(gene) }
             .map { file, gene -> tuple(gene, file) }
 
         // Combine annotated and original files by gene
         pre_annotated_ch = annotated_files_ch
-            .join(original_files_ch)  // Une por gene: [gene, annotated_file, original_file]
+            .join(normalized_files_ch)  // Une por gene: [gene, annotated_file, original_file]
 
         // Clean and format BCI patients variants (same process, different input)
         cleanFormatBciPatientsVar(pre_annotated_ch)

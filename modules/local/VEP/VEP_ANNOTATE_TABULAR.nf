@@ -3,6 +3,7 @@ process VEP_ANNOTATE_TABULAR {
     label 'vep_process'
 
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
+    publishDir "${params.bci_annotated_dir}", mode: 'copy', pattern: "*_vep_output.txt"
 
     input:
     tuple val(gene_name), path(vep_input)

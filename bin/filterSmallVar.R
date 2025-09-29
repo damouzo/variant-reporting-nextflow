@@ -3,9 +3,9 @@
 
 # Arguments --------------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-clean_smallvar_file   <- args[1]  # "C:/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/raw_data/WGS_Variants/smallVar/GRCh38_DDX41_annotated_variants.tsv"
-gene_name             <- args[2]        # "DDX41"
-part_metadata_file    <- args[3]   # TSV file with participant metadata
+clean_smallvar_file   <- args[1]  # "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/results/DHX34/DHX34_small_variants.rds
+gene_name             <- args[2]  # "DHX34"
+part_metadata_file    <- args[3]  # "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/results/DHX34/DHX34_structural_variants_participantMetadata.rds"
 
 # Libraries  -------------------------------------------------------------------
 library(tidyverse)
@@ -50,7 +50,8 @@ stats_variants_filter <- rbind(stats_variants_filter,
                               ))
 
 # Filter for canonical variants
-variant_filtered_table <- variant_table[variant_table$CANONICAL_annotation == "YES", ]
+variant_filtered_table <- variant_table %>%
+  filter(CANONICAL_annotation == "YES")
 
 # Add canonical variants count to stats
 stats_variants_filter <- rbind(stats_variants_filter, 
@@ -105,10 +106,9 @@ stats_variants_filter <- rbind(stats_variants_filter,
 
 # Filter by MAX_AF annotation --------------------------------------------------
 # Keep variants with MAX_AF = "-" or < 0.001
-variant_filtered_table <- variant_filtered_table[
-  variant_filtered_table$MAX_AF_annotation == "-" | 
-  (variant_filtered_table$MAX_AF_annotation != "-" & 
-   as.numeric(variant_filtered_table$MAX_AF_annotation) < 0.001), ]
+variant_filtered_table <- variant_filtered_table %>%
+  filter(!is.na(MAX_AF_annotation) & (MAX_AF_annotation == "-" | as.numeric(MAX_AF_annotation) < 0.001))
+
 
 # Add count after MAX_AF filtering
 stats_variants_filter <- rbind(stats_variants_filter, 

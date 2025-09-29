@@ -177,11 +177,11 @@ cat("Total samples of matched variants:", total_samples, "\n")
 
 # Save variant table  --------------------------------------------------------------
 # TSV
-out_file_tsv <- paste0(gene_name, "_compared_bci_ge_small_variants.tsv")
+out_file_tsv <- paste0(gene_name, "_bci_patients_compared_ge_small_variants.tsv")
 write.table(compared_var, file = out_file_tsv, sep = "\t", row.names = FALSE, quote = FALSE)
 
 # RDS
-out_file_rds <- paste0(gene_name, "_compared_bci_ge_small_variants.rds")
+out_file_rds <- paste0(gene_name, "_bci_patients_compared_ge_small_variants.rds")
 saveRDS(compared_var, file = out_file_rds)
 
 # Print output messages

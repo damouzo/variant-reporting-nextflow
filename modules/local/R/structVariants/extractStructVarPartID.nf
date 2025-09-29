@@ -45,6 +45,15 @@ process extractStructVarPartID {
     echo "STUB MODE: Using mock data for ${gene_name}"
     cp "${moduleDir}/mock_data/${gene_name}_structural_variants_participantID.txt" "${gene_name}_structural_variants_participantID.txt"     
     cp "${moduleDir}/mock_data/${gene_name}_structural_variants_participantMetadata.tsv" "${gene_name}_structural_variants_participantMetadata.tsv"
+    
+     # Generate RDS file from TSV using R
+    Rscript -e "
+    data <- read.table('${gene_name}_structural_variants_participantMetadata.tsv', header = TRUE,
+                         sep = '\t', stringsAsFactors = FALSE)
+    saveRDS(data, '${gene_name}_structural_variants_participantMetadata.rds')
+    cat('RDS file created successfully from mock TSV data\n')
+    "
+    
     echo "Mock files ready for ${gene_name}"
 
     cat <<-END_VERSIONS > versions.yml

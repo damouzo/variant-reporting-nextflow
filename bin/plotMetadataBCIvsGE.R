@@ -60,6 +60,7 @@ metadata <- readRDS(metadata_file)
 ge_samples_with_bci_var <- comparison_data %>% 
   select(Existing_variation_annotation, Het_samples, Hom_samples, Hemi_samples) %>% 
   mutate(rs_id = str_extract(Existing_variation_annotation, "rs[0-9]+")) %>%
+  filter(!is.na(rs_id)) %>%
   mutate(across(c(Het_samples, Hom_samples, Hemi_samples), ~na_if(., "NA"))) %>%
   rowwise() %>%
   mutate(all_samples = paste(c(Het_samples, Hom_samples, Hemi_samples)[!is.na(c(Het_samples, Hom_samples, Hemi_samples))], collapse = ",")) %>%
@@ -75,8 +76,10 @@ ge_samples_with_bci_var$AllVariantsBCI <- ge_samples_with_bci_var %>%
 
 # Save in csv files
 for (rs_id in names(ge_samples_with_bci_var)) {
-  df <- ge_samples_with_bci_var[[rs_id]]
-  write_csv(data.frame(df), paste0(gene_name, "_GEsamples_with_BCIvariants_", rs_id, ".csv"), col_names = FALSE)
+  samples_vector <- ge_samples_with_bci_var[[rs_id]]
+    write.table(samples_vector, 
+                file = paste0(gene_name, "_GEsamples_with_BCIvariants_", rs_id, ".csv"),
+                sep = ",", row.names = FALSE, col.names = FALSE, quote = FALSE)
 }
 
 
@@ -89,9 +92,14 @@ ge_patients_with_bci_var <- lapply(ge_samples_with_bci_var, function(samples) {
 # Save in csv files
 for (rs_id in names(ge_patients_with_bci_var)) {
   df <- ge_patients_with_bci_var[[rs_id]]
-  write_csv(df, paste0(gene_name, "_GEpatientMetadata_with_BCIvariants_", rs_id, ".csv"))
-  df2 <- df %>% select(participant_id)
-  write_csv(df2, paste0(gene_name, "_ParticipantsID_", rs_id, ".csv"))
+    write.table(df, 
+                file = paste0(gene_name, "_GEpatientMetadata_with_BCIvariants_", rs_id, ".csv"),
+                sep = ",", row.names = FALSE, col.names = TRUE, quote = FALSE)
+    
+    df2 <- df %>% select(participant_id)
+    write.table(df2, 
+                file = paste0(gene_name, "_ParticipantsID_", rs_id, ".csv"),
+                sep = ",", row.names = FALSE, col.names = TRUE, quote = FALSE)
 }
 
 
