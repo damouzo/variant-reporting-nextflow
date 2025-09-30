@@ -5,7 +5,7 @@ process plotQCstructVar {
     label 'r_process'
 
     // Publicar todos los PDFs generados en subcarpeta organizada por gen
-    publishDir "${params.results_dir}/${gene_name}/plots/struct_variants", mode: 'copy'
+    publishDir "${params.results_dir}/${gene_name}/plots/structural_variants", mode: 'copy'
 
     input:
     tuple val(gene_name), path(clean_table), path(part_metadata_file)
