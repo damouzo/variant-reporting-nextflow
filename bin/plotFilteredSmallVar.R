@@ -2284,8 +2284,7 @@ cat("Found ClinVar categories:", paste(clinvar_categories, collapse = ", "), "\n
 
 # Function to create metadata plots for a given dataset
 create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
-  if (nrow(variant_data) == 0) {
-    cat("No data available for", title_suffix, "\n")
+  if (nrow(variant_data) == 0) {cat("No data available for", title_suffix, "\n")
     return(NULL)
   }
   
@@ -2314,18 +2313,14 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
   variant_metadata <- metadata_info %>%
     filter(plate_key %in% all_samples) %>%
     distinct(participant_id, .keep_all = TRUE) %>%  # Keep only unique participants
-    mutate(
-      diagnosis_age = case_when(
-        !is.na(cancer_diagnosis_age) ~ as.numeric(as.character(cancer_diagnosis_age)),
-        !is.na(rare_disease_diagnosis_age) ~ as.numeric(as.character(rare_disease_diagnosis_age)),
-        TRUE ~ NA_real_
+    mutate(diagnosis_age = coalesce(
+        as.numeric(as.character(cancer_diagnosis_age)),
+        as.numeric(as.character(rare_disease_diagnosis_age))
       )
     )
   
   cat("Matched to", nrow(variant_metadata), "unique participants\n")
-  
-  if (nrow(variant_metadata) == 0) {
-    cat("No participant metadata found for", title_suffix, "variants\n")
+  if (nrow(variant_metadata) == 0) {cat("No participant metadata found for", title_suffix, "variants\n")
     return(NULL)
   }
   
@@ -2500,7 +2495,7 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
     }
     
     # Create PDF with all barplots on the same page using grid functions
-    pdf_file <- paste0(gene_name, "_Filtered_", filename_suffix, "_PartMetadata_Barplots.pdf")
+    pdf_file <- paste0(gene_name, "_Filtered_PartMetadata_Barplots_", filename_suffix, ".pdf")
     pdf(pdf_file, width = 12, height = 16)
     
     # Create a single page with both grids
@@ -2514,7 +2509,7 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
     # FIRST GRID: Short label variables (≤25 characters) - Upper part
     if (length(short_label_plots) > 0) {
       # Add section title for short labels - moved up
-      grid.text(paste0("General Participant Characteristics (", nrow(metadata_info), ")"),
+      grid.text(paste0("General Participant Characteristics (", nrow(variant_metadata), ")"),
                 x = 0.5, y = 0.93,  # Moved from 0.89 to 0.93
                 gp = gpar(fontsize = 14, fontface = "bold"))
       
@@ -2615,8 +2610,8 @@ canonical_variants <- variants_table %>% filter(CANONICAL_annotation == "YES")
 
 create_metadata_plots(
   variant_data = canonical_variants,
-  title_suffix = "Canonical",
-  filename_suffix = "CanonicalVar"
+  title_suffix = "AllCanonical",
+  filename_suffix = "AllCanonical"
 )
 
 

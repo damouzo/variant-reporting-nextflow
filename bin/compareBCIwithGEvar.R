@@ -19,7 +19,7 @@ set.seed(23)
 # Load gene annotated variant file ---------------------------------------------
 bci_var_table <- readRDS(bci_file)
 ge_variant_table <- readRDS(ge_file)
-
+ge_variant_table <- ge_variant_table %>% filter(CANONICAL_annotation == "YES")
 
 # Function definitions ----------------------------------------------------------
 # Function to split and compare existing variation names
@@ -118,8 +118,8 @@ if (nrow(all_matches) > 0) {
 # Create comparison table
 if (nrow(all_matches) > 0) {
   # Select columns of interest for BCI and GE
-  bci_selected <- bci_var_table[all_matches$bci_row, c("Variant", "Location", "Allele", "Existing_variation", "Patient_REF")]
-  ge_selected <- ge_variant_table[all_matches$ge_row, c("ID_variant", "CHROM_variant", "POS_variant", "REF_variant", "ALT_variant", "Existing_variation_annotation", "IMPACT_annotation", "Het_samples", "Hom_samples", "Hemi_samples")]
+  bci_selected <- bci_var_table[all_matches$bci_row, c("Variant", "Location", "Allele", "Existing_variation", "Patient_REF", "Patient_Centre_REF")]
+  ge_selected <- ge_variant_table[all_matches$ge_row, c("ID_variant", "CHROM_variant", "POS_variant", "REF_variant", "ALT_variant", "Existing_variation_annotation", "IMPACT_annotation", "CLIN_SIG_annotation","Het_samples", "Hom_samples", "Hemi_samples")]
   
   # Combine tables
   compared_var_full <- cbind(bci_selected, ge_selected,

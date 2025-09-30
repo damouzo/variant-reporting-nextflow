@@ -31,7 +31,9 @@ cat("All input files validated successfully\n")
 # Libraries  -------------------------------------------------------------------
 library(tidyverse)
 library(paletteer)
-library(patchwork) 
+library(patchwork)
+library(grid)
+library(gridExtra)
 
 
 # Settings ----------------------------------------------------------------------
@@ -103,56 +105,261 @@ for (rs_id in names(ge_patients_with_bci_var)) {
 }
 
 
-# Plots ------------------------------------------------------------------------
-# 1. Distribution of BCI variants in GE patients
-vars_of_interest <- c("affection_status", "participant_type", "program", 
-                      "participant_karyotype_sex", "normalised_disease_group", 
-                      "normalised_specific_disease")
-
-for (rs_id in names(ge_patients_with_bci_var)) {
-  df <- ge_patients_with_bci_var[[rs_id]]
+# Metadata Distribution Plots ------------------------------------------------
+# Function to create metadata plots for a given dataset
+create_metadata_plots <- function(variant_metadata, rs_id, gene_name) {
+  if (nrow(variant_metadata) == 0) {
+    cat("No data available for", rs_id, "\n")
+    return(NULL)
+  }
   
-  plot_list <- lapply(vars_of_interest, function(var) {
-    if (!var %in% colnames(df)) return(NULL)
+  cat("Processing metadata for", nrow(variant_metadata), "participants with", rs_id, "variant...\n")
+  
+  # Ensure unique participants and add diagnosis age
+  variant_metadata <- variant_metadata %>%
+    distinct(participant_id, .keep_all = TRUE) %>%
+    mutate(diagnosis_age = coalesce(
+      as.numeric(as.character(cancer_diagnosis_age)),
+      as.numeric(as.character(rare_disease_diagnosis_age))
+    ))
+  
+  # Variables of interest for barplots
+  vars_of_interest <- c("participant_type", "affection_status", "programme",
+                        "yob", "diagnosis_age", "participant_karyotyped_sex",  
+                        "genetically_inferred_ancestry_thr", "normalised_disease_group", 
+                        "normalised_specific_disease")
+  
+  # Create barplots for each variable
+  plot_list <- list()
+  
+  for (var in vars_of_interest) {
+    if (!var %in% colnames(variant_metadata)) {
+      cat("Warning: Variable", var, "not found in metadata. Skipping...\n")
+      next
+    }
     
-    df_count <- df %>%
-      filter(!is.na(.data[[var]])) %>%
-      count(.data[[var]]) %>%
-      mutate(pct = n / sum(n) * 100,
-             label = ifelse(pct < 5, "<5%", paste0(round(pct,1), "%")))
+    # Handle variables depending on type
+    if (is.numeric(variant_metadata[[var]]) || var %in% c("yob", "diagnosis_age")) {
+      # Create bins for numeric variables
+      df_count <- variant_metadata %>%
+        filter(!is.na(.data[[var]]), .data[[var]] != "") %>%
+        mutate(
+          numeric_var = as.numeric(as.character(.data[[var]])),
+          var_binned = case_when(
+            var == "yob" ~ paste0(floor(numeric_var/10)*10, "s"),
+            var == "diagnosis_age" ~ paste0(floor(numeric_var/10)*10, "s"),
+            TRUE ~ as.character(numeric_var)
+          ),
+          order_value = case_when(
+            var == "yob" ~ floor(numeric_var/10)*10,
+            var == "diagnosis_age" ~ floor(numeric_var/10)*10,
+            TRUE ~ numeric_var
+          )
+        ) %>%
+        filter(!is.na(numeric_var)) %>%
+        count(var_binned, order_value) %>%
+        mutate(
+          pct = n / sum(n) * 100,
+          label = ifelse(pct < 5, "<5%", paste0(round(pct), "%"))
+        ) %>%
+        arrange(order_value)
+    } else {
+      # Handle categorical variables
+      df_count <- variant_metadata %>%
+        filter(!is.na(.data[[var]]), .data[[var]] != "") %>%
+        count(.data[[var]]) %>%
+        mutate(
+          pct = n / sum(n) * 100,
+          var_binned = .data[[var]],
+          order_value = NA_real_
+        ) %>%
+        arrange(desc(n))
+      
+      # For disease group variables, keep only top 10 and combine rest
+      if (var %in% c("normalised_disease_group", "normalised_specific_disease")) {
+        if (nrow(df_count) > 10) {
+          top_10 <- df_count[1:10, ]
+          rest_count <- sum(df_count[11:nrow(df_count), ]$n)
+          rest_pct <- sum(df_count[11:nrow(df_count), ]$pct)
+          
+          rest_row <- data.frame(
+            tmp = "REST, other groups or combinations",
+            n = rest_count,
+            pct = rest_pct,
+            var_binned = "REST, other groups or combinations",
+            order_value = NA_real_,
+            stringsAsFactors = FALSE
+          )
+          names(rest_row)[1] <- var
+          
+          df_count <- rbind(top_10, rest_row)
+        }
+      }
+      
+      df_count <- df_count %>%
+        mutate(label = ifelse(pct < 5, "<5%", paste0(round(pct), "%")))
+    }
     
-    # Calculate y-axis limit to accommodate labels
-    max_pct <- max(df_count$pct)
-    y_limit <- max_pct * 1.15 
+    if (nrow(df_count) == 0) next
     
-    ggplot(df_count, aes(x = .data[[var]], y = pct, fill = .data[[var]])) +
-      geom_col(show.legend = FALSE) +
-      geom_text(aes(label = label), vjust = -0.5, size = 3.5) +
-      labs(x = "", y = "Percentage") +
-      ggtitle(var) +
-      ylim(0, y_limit) +
-      theme_minimal() +
-      theme(
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        plot.title = element_text(size = 12, hjust = 0.5, margin = margin(b = 10))
+    # Truncate labels that are 50+ characters
+    df_count <- df_count %>%
+      mutate(
+        var_binned = ifelse(
+          nchar(as.character(var_binned)) >= 50,
+          paste0(substr(as.character(var_binned), 1, 47), "..."),
+          as.character(var_binned)
+        )
       )
-  })
+    
+    max_label_length <- max(nchar(as.character(df_count$var_binned)), na.rm = TRUE)
+    max_pct <- max(df_count$pct)
+    y_limit <- max_pct * 1.15
+    
+    # Create plot with appropriate ordering
+    if (var %in% c("yob", "diagnosis_age")) {
+      p <- ggplot(df_count, aes(x = reorder(var_binned, order_value), y = pct, fill = var_binned)) +
+        geom_col(show.legend = FALSE, alpha = 0.8) +
+        geom_text(aes(label = label), vjust = -0.5, size = 3) +
+        labs(x = "", y = "Perc. of Participants") +
+        ggtitle(paste(var, "(n =", sum(df_count$n), ")")) +
+        ylim(0, y_limit) +
+        theme_minimal() +
+        theme(
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+          plot.title = element_text(size = 11, hjust = 0.5, margin = margin(b = 10)),
+          panel.grid.minor = element_blank()
+        )
+    } else if (var %in% c("normalised_disease_group", "normalised_specific_disease")) {
+      df_count <- df_count %>%
+        mutate(
+          is_rest = var_binned == "REST, other groups or combinations",
+          sort_order = ifelse(is_rest, Inf, -pct)
+        ) %>%
+        arrange(sort_order)
+      
+      p <- ggplot(df_count, aes(x = factor(var_binned, levels = var_binned), y = pct, fill = var_binned)) +
+        geom_col(show.legend = FALSE, alpha = 0.8) +
+        geom_text(aes(label = label), vjust = -0.5, size = 3) +
+        labs(x = "", y = "Perc. of Participants") +
+        ggtitle(paste(var, "(n =", sum(df_count$n), ")")) +
+        ylim(0, y_limit) +
+        theme_minimal() +
+        theme(
+          axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 9),
+          plot.title = element_text(size = 11, hjust = 0.5, margin = margin(b = 10)),
+          panel.grid.minor = element_blank()
+        )
+    } else {
+      p <- ggplot(df_count, aes(x = reorder(var_binned, -pct), y = pct, fill = var_binned)) +
+        geom_col(show.legend = FALSE, alpha = 0.8) +
+        geom_text(aes(label = label), vjust = -0.5, size = 3) +
+        labs(x = "", y = "Perc. of Participants") +
+        ggtitle(paste(var, "(n =", sum(df_count$n), ")")) +
+        ylim(0, y_limit) +
+        theme_minimal() +
+        theme(
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+          plot.title = element_text(size = 11, hjust = 0.5, margin = margin(b = 10)),
+          panel.grid.minor = element_blank()
+        )
+    }
+    
+    plot_list[[var]] <- list(plot = p, max_label_length = max_label_length)
+  }
   
+  # Remove NULL plots
   plot_list <- plot_list[!sapply(plot_list, is.null)]
   
   if (length(plot_list) > 0) {
-    pdf_file <- paste0(gene_name, "_", rs_id, "_GEpatientMetadata_BCIvariants_barplots.pdf")
-    pdf(pdf_file, width = 10, height = 8)
+    # Separate plots by label length
+    short_label_plots <- list()
+    long_label_plots <- list()
     
-    # Combinar plots y poner título general
-    print(wrap_plots(plot_list, ncol = 2) +
-      plot_annotation(
-        title = paste0(rs_id, " (", length(df$participant_id), ")"),
-        theme = theme(
-          plot.title = element_text(size = 16, hjust = 0.5, margin = margin(b = 20))
-        )
-      ))
+    for (var_name in names(plot_list)) {
+      if (var_name %in% c("normalised_disease_group", "normalised_specific_disease") || plot_list[[var_name]]$max_label_length > 25) {
+        long_label_plots[[var_name]] <- plot_list[[var_name]]$plot
+      } else {
+        short_label_plots[[var_name]] <- plot_list[[var_name]]$plot
+      }
+    }
+    
+    # Create PDF with all barplots
+    pdf_file <- paste0(gene_name, "_GEpatientMetadata_BCIvariants_", rs_id, ".pdf")
+    pdf(pdf_file, width = 12, height = 16)
+    
+    grid.newpage()
+    
+    # Add main title
+    grid.text(paste0("Participant Distribution for ", gene_name, " - ", rs_id),
+              x = 0.5, y = 0.97, 
+              gp = gpar(fontsize = 16, fontface = "bold"))
+    
+    # FIRST GRID: Short label variables
+    if (length(short_label_plots) > 0) {
+      grid.text(paste0("General Participant Characteristics (", nrow(variant_metadata), ")"),
+                x = 0.5, y = 0.93,
+                gp = gpar(fontsize = 14, fontface = "bold"))
+      
+      n_short_plots <- length(short_label_plots)
+      ncol_short <- 3
+      nrow_short <- ceiling(n_short_plots / ncol_short)
+      
+      plot_width_short <- 1 / ncol_short
+      plot_height_short <- 0.48 / nrow_short 
+      
+      for (i in seq_along(short_label_plots)) {
+        row_idx <- ceiling(i / ncol_short)
+        col_idx <- ((i - 1) %% ncol_short) + 1
+        
+        x_pos <- (col_idx - 0.5) * plot_width_short
+        y_pos <- 0.89 - (row_idx - 0.5) * plot_height_short 
+        
+        vp <- viewport(x = x_pos, y = y_pos, 
+                       width = plot_width_short * 0.95, 
+                       height = plot_height_short * 0.95)
+        
+        print(short_label_plots[[i]], vp = vp)
+      }
+    }
+    
+    # SECOND GRID: Long label variables
+    if (length(long_label_plots) > 0) {
+      grid.text("Disease Group Characteristics",
+                x = 0.5, y = 0.38,
+                gp = gpar(fontsize = 14, fontface = "bold"))
+      
+      n_long_plots <- length(long_label_plots)
+      ncol_long <- 2
+      nrow_long <- ceiling(n_long_plots / ncol_long)
+      
+      plot_width_long <- 1 / ncol_long
+      plot_height_long <- 0.32 / nrow_long
+      
+      for (i in seq_along(long_label_plots)) {
+        row_idx <- ceiling(i / ncol_long)
+        col_idx <- ((i - 1) %% ncol_long) + 1
+        
+        x_pos <- (col_idx - 0.5) * plot_width_long
+        y_pos <- 0.34 - (row_idx - 0.5) * plot_height_long
+        
+        vp <- viewport(x = x_pos, y = y_pos, 
+                       width = plot_width_long * 0.95, 
+                       height = plot_height_long * 0.95)
+        
+        print(long_label_plots[[i]], vp = vp)
+      }
+    }
     
     dev.off()
+    cat("Generated:", pdf_file, "\n")
   }
 }
+
+# Process each rs_id separately
+for (rs_id in names(ge_patients_with_bci_var)) {
+  cat("\n--- Processing", rs_id, "variant ---\n")
+  df <- ge_patients_with_bci_var[[rs_id]]
+  create_metadata_plots(df, rs_id, gene_name)
+}
+

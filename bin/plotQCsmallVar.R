@@ -2301,18 +2301,16 @@ if (nrow(canonical_variants) > 0) {
   canonical_metadata <- metadata_info %>%
     filter(plate_key %in% all_samples) %>%
     distinct(participant_id, .keep_all = TRUE) %>%  # Keep only unique participants
-    mutate(
-      diagnosis_age = case_when(
-        !is.na(cancer_diagnosis_age) ~ as.numeric(as.character(cancer_diagnosis_age)),
-        !is.na(rare_disease_diagnosis_age) ~ as.numeric(as.character(rare_disease_diagnosis_age)),
-        TRUE ~ NA_real_
+    mutate(diagnosis_age = coalesce(
+        as.numeric(as.character(cancer_diagnosis_age)),
+        as.numeric(as.character(rare_disease_diagnosis_age))
       )
     )
   
   # Variables of interest for barplots
   vars_of_interest <- c("participant_type", "affection_status", "programme",
-                        "yob", "diagnosis_age", "participant_karyotyped_sex",  
-                        "genetically_inferred_ancestry_thr","normalised_disease_group", "normalised_disease_sub_group")
+                        "yob", "diagnosis_age", "participant_karyotyped_sex",
+                        "genetically_inferred_ancestry_thr", "normalised_disease_group", "normalised_disease_sub_group")
   
   # Create barplots for each variable
   plot_list <- list()

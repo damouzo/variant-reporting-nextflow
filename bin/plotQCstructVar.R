@@ -99,30 +99,79 @@ generate_cnv_plot <- function(data, gene, variant_orig) {
 generate_inversion_plot <- function(data, gene, variant_orig) {
   pdf(paste0(gene, "_", variant_orig, "_QC_Inversions_Segments.pdf"), width = 14, height = 10)
   
+  # Get gene boundaries from exon info
+  gene_start <- min(exon_info$ExonStart, na.rm = TRUE)
+  gene_end <- max(exon_info$ExonEnd, na.rm = TRUE)
+  
   plot_data <- data %>%
     mutate(start_pos = as.numeric(POS), end_pos = as.numeric(INFO_END), quality = as.numeric(QUAL_SVonly), 
           unique_inversion = paste0(CHROM, "_", POS, "_", INFO_END)) %>%
     group_by(unique_inversion, start_pos, end_pos) %>%
     summarise(count = n(), avg_quality = mean(quality, na.rm = TRUE), .groups = "drop") %>%
-    mutate(variant_id = row_number()) %>%
-    arrange(desc(count))
+    mutate(inversion_length = end_pos - start_pos) %>%
+    arrange(desc(inversion_length)) %>%  # Sort by length (longest first)
+    mutate(variant_id = row_number())    # Assign IDs based on length order
   
-  print(
-    ggplot(plot_data, aes(y = variant_id)) +
-      geom_segment(aes(x = start_pos, xend = end_pos, yend = variant_id, color = avg_quality),
-                  size = 0.8, alpha = 0.8) +
+  # PAGE 1: Full view
+  p1 <- ggplot(plot_data, aes(y = variant_id)) +
+    # Add gene bar
+    geom_segment(aes(x = gene_start, xend = gene_end, y = 0, yend = 0), 
+                 color = "black", size = 3, alpha = 0.8) +
+    geom_text(aes(x = (gene_start + gene_end)/2, y = 0, label = paste(gene, "Gene")), 
+              vjust = 2, size = 4) +
+    # Add inversion segments
+    geom_segment(aes(x = start_pos, xend = end_pos, yend = variant_id, color = avg_quality),
+                size = 1.2, alpha = 0.8) +
+    scale_color_gradient(low = "#0066CC", high = "#FF0000", name = "Avg Quality") +
+    theme_minimal() +
+    labs(title = paste0("Inversions in ", variant_orig, " variants for ", gene),
+      x = "Genomic Position (bp)", y = "Unique Inversions") +
+    theme(axis.text.x = element_text(size = 12, angle = 45, hjust = 1),
+      axis.text.y = element_blank(), axis.ticks.y = element_blank(),
+      axis.title.x = element_text(size = 14), axis.title.y = element_text(size = 14),
+      plot.title = element_text(size = 16), legend.title = element_text(size = 12),
+      legend.text = element_text(size = 10)) +
+    scale_x_continuous(labels = scales::comma_format(), 
+                       limits = c(min(gene_start, min(plot_data$start_pos)), 
+                                 max(gene_end, max(plot_data$end_pos)))) +
+    scale_y_continuous(breaks = NULL, limits = c(-0.5, max(plot_data$variant_id) + 1))
+  
+  print(p1)
+  
+  # PAGE 2: Zoomed view (±1MB around gene)
+  zoom_start <- gene_start - 1000000
+  zoom_end <- gene_end + 1000000
+  
+  plot_data_zoom <- plot_data %>%
+    filter(start_pos <= zoom_end & end_pos >= zoom_start) %>%
+    mutate(start_pos_clipped = pmax(start_pos, zoom_start),
+          end_pos_clipped = pmin(end_pos, zoom_end))
+  
+  if (nrow(plot_data_zoom) > 0) {
+    p2 <- ggplot(plot_data_zoom, aes(y = variant_id)) +
+      # Add gene bar at the bottom
+      geom_segment(aes(x = gene_start, xend = gene_end, y = 0, yend = 0), 
+                   color = "black", size = 3, alpha = 0.8) +
+      geom_text(aes(x = (gene_start + gene_end)/2, y = 0, label = paste(gene, "Gene")), 
+                vjust = 2, size = 4) +
+      # Add inversion segments (using clipped coordinates)
+      geom_segment(aes(x = start_pos_clipped, xend = end_pos_clipped, yend = variant_id, color = avg_quality),
+                  size = 1.5, alpha = 0.8) +
       scale_color_gradient(low = "#0066CC", high = "#FF0000", name = "Avg Quality") +
       theme_minimal() +
-      labs(title = paste0("Inversions in ", variant_orig, " variants for ", gene),
+      labs(title = paste0("Inversions in ", variant_orig, " variants for ", gene, " - Gene Region (±1MB)"),
         x = "Genomic Position (bp)", y = "Unique Inversions") +
       theme(axis.text.x = element_text(size = 12, angle = 45, hjust = 1),
         axis.text.y = element_blank(), axis.ticks.y = element_blank(),
         axis.title.x = element_text(size = 14), axis.title.y = element_text(size = 14),
         plot.title = element_text(size = 16), legend.title = element_text(size = 12),
         legend.text = element_text(size = 10)) +
-      scale_x_continuous(labels = scales::comma_format()) +
-      scale_y_continuous(breaks = NULL)
-  )
+      scale_x_continuous(labels = scales::comma_format(), 
+                         limits = c(zoom_start, zoom_end)) +
+      scale_y_continuous(breaks = NULL, limits = c(-0.5, max(plot_data_zoom$variant_id) + 1))
+    
+    print(p2)
+  }   
   dev.off()
 }
 
