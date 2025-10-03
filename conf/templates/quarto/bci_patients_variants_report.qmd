@@ -1,0 +1,518 @@
+---
+title: "{{PROJECT_NAME}} - Quality Control Report"
+subtitle: "{{GENE_NAME}} Gene Analysis"
+author: "{{PROJECT_AUTHOR}} ({{PROJECT_CODE}})"
+date: "`r Sys.Date()`"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: true
+    code-summary: "Show code"
+    embed-resources: true
+    self-contained: true
+    self-contained-math: true
+    keep-md: false
+    fig-width: 10
+    fig-height: 6
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| include: false
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(DT)
+library(plotly)
+library(gt)
+
+# Set global options
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center")
+
+# Define data directory
+data_dir <- "data"
+
+# Project information from pipeline
+project_info <- list(
+  code = "{{PROJECT_CODE}}",
+  name = "{{PROJECT_NAME}}",
+  author = "{{PROJECT_AUTHOR}}",
+  gene = "{{GENE_NAME}}"
+)
+```
+
+# Executive Summary
+
+This comprehensive **HTML report** presents a detailed quality control analysis of germline variants identified in the **{{GENE_NAME}}** gene as part of the **{{PROJECT_CODE}}** research initiative. The analysis integrates patient-derived variant data from the Biobank Cancer Initiative (BCI) with population-level reference data from Genomics England (GE), providing crucial insights into variant pathogenicity, population frequency, and clinical significance.
+
+Key components of this report include:
+
+- Annotated patient variants with functional predictions
+- Visual representation of variant distribution across protein domains
+- Comparative analysis with population databases
+- Quality metrics and data completeness assessments
+
+---
+
+# Variant Analysis
+
+## 1. Patient Variants Overview
+
+This section presents all germline variants identified in BCI patients, comprehensively annotated using the Variant Effect Predictor (VEP). Each variant is characterized by its genomic location, consequence type, predicted functional impact, and pathogenicity scores (SIFT, PolyPhen). The interactive table allows for detailed exploration and filtering of variants based on multiple criteria.
+
+**Key Features:**  
+- **HGVS Nomenclature**: Standard notation for genomic and protein-level changes  
+- **Impact Classification**: HIGH, MODERATE, LOW, or MODIFIER based on predicted functional consequences  
+- **Pathogenicity Predictions**: SIFT and PolyPhen scores for missense variants  
+- **Clinical Annotations**: ClinVar significance where available  
+
+```{r patients-variants-table}
+#| echo: false
+
+# Load patients variants data
+rds_files <- list.files(data_dir, pattern = "*_bci_patients_variants.rds", full.names = TRUE)
+
+if (length(rds_files) > 0) {
+  variants_data <- map_dfr(rds_files, ~{
+    gene_name <- str_extract(basename(.x), "^[^_]+")
+    data <- readRDS(.x)
+    if (is.data.frame(data) && nrow(data) > 0) {
+      data %>%
+        mutate(Gene_id = gene_name, .before = 1)
+    } else {
+      NULL 
+    }
+  })
+  
+  if (!is.null(variants_data) && nrow(variants_data) > 0) {
+    # Select key columns for display
+    display_cols <- c(
+      "Patient_REF", "Patient_Centre_REF","Center" ,"Gene_id", "Transcript",
+      "cDNA_Change_HGVS_c", "Protein_Change_HGVS_p", "Location", 
+      "Allele", "Consequence", "CANONICAL", "IMPACT", "SYMBOL", "Existing_variation",
+      "SIFT", "PolyPhen", "EXON", "AF", "CLIN_SIG"
+    )
+    
+    # Filter to available columns
+    available_cols <- intersect(display_cols, names(variants_data))
+    
+    # Create interactive table
+    variants_data %>%
+      select(any_of(available_cols)) %>%
+      datatable(
+        caption = "BCI Patients Variants - Interactive Table",
+        filter = 'top',
+        options = list(
+          pageLength = 10,
+          scrollX = TRUE,
+          autoWidth = TRUE,
+          columnDefs = list(
+            list(className = 'dt-center', targets = '_all')
+          ),
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel')
+        ),
+        rownames = FALSE,
+        class = 'cell-border stripe hover'
+      ) %>%
+      formatStyle(
+        'IMPACT',
+        backgroundColor = styleEqual(
+          c('HIGH', 'MODERATE', 'LOW', 'MODIFIER'),
+          c('#ffcccc', '#ffffcc', '#ccffcc', '#e6e6e6')
+        )
+      )
+  } else {
+    cat("No variant data available for patients.")
+  }
+} else {
+  cat("No patients variants RDS files found in data directory.")
+}
+```
+
+## 2. Protein Domain Visualization
+
+The lollipop plot below provides a visual representation of variant positions mapped onto the canonical protein transcript. This visualization facilitates the identification of potential mutational hotspots and the assessment of variants within functionally important protein domains.
+
+**Interpretation Guide:**  
+- Each "lollipop" represents a variant position
+- The height may indicate the number of patients with variants at that position
+- Colored regions represent known protein domains and functional regions
+- Canonical transcript is used for standardized representation
+
+```{r lolliplot-display}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 8
+
+# Look for lolliplot PDF
+lolliplot_file <- list.files(data_dir, pattern = "*_Lollipop_Canonical\\.pdf$", full.names = TRUE)
+
+if (length(lolliplot_file) > 0) {
+  # Get relative path
+  pdf_path <- lolliplot_file[1]
+  
+  # Try to detect number of pages and convert to images
+  if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+    tryCatch({
+      # Get PDF info
+      pdf_info <- pdftools::pdf_info(pdf_path)
+      num_pages <- pdf_info$pages
+      
+      cat('\n<!-- Lollipop plot visualization -->\n')
+      
+      # Convert each page to PNG
+      for (page_num in 1:num_pages) {
+        # Render page as image at high resolution
+        img <- pdftools::pdf_render_page(pdf_path, page = page_num, dpi = 300)
+        
+        # Save as PNG in working directory (not temp) so Pandoc can find it
+        png_filename <- paste0("lollipop_page_", page_num, ".png")
+        png::writePNG(img, png_filename)
+        
+        cat('\n<div style="margin: 30px 0;">\n')
+        
+        ## Display title only if multiple pages
+        #if (num_pages > 1) {
+        #  cat('  <h5 style="margin-bottom:15px; color:#495057; font-weight:600;">Plot ', page_num, '</h5>\n', sep = "")
+        #}
+        
+        # Include image with proper styling using relative path
+        cat('  <img src="', png_filename, '" style="width:100%; height:auto; border:1px solid #dee2e6; border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="Lollipop plot ', page_num, '" />\n', sep = "")
+        cat('</div>\n')
+      }
+      
+      cat('\n<!-- End lollipop plot visualization -->\n\n')
+      
+    }, error = function(e) {
+      # Fallback: show PDF with embed if conversion fails
+      cat('\n<div style="padding:20px; background:#f8d7da; border:1px solid #f5c2c7; border-radius:5px; margin:20px 0;">\n')
+      cat('  <h4 style="color:#842029; margin-top:0;">⚠️ PDF Conversion Notice</h4>\n')
+      cat('  <p style="color:#842029; margin-bottom:0;">Could not convert PDF pages to images. Error: ', e$message, '</p>\n')
+      cat('</div>\n\n')
+      
+      # Show full PDF as fallback
+      cat('<div style="width:100%; margin:20px 0;">\n')
+      cat('  <embed src="', pdf_path, '" type="application/pdf" width="100%" height="1000px" style="border:1px solid #ddd;" />\n', sep = "")
+      cat('</div>\n')
+    })
+  } else {
+    # Fallback: show full PDF if pdftools not available
+    cat('\n<div style="padding:20px; background:#fff3cd; border:1px solid #ffc107; border-radius:5px; margin:20px 0;">\n')
+    cat('  <h4 style="color:#856404; margin-top:0;">ℹ️ Package Notice</h4>\n')
+    cat('  <p style="color:#856404; margin-bottom:0;">The pdftools package is not available. Displaying full PDF document.</p>\n')
+    cat('</div>\n\n')
+    
+    cat('<div style="width:100%; margin:20px 0;">\n')
+    cat('  <embed src="', pdf_path, '" type="application/pdf" width="100%" height="1000px" style="border:1px solid #ddd;" />\n', sep = "")
+    cat('</div>\n')
+  }
+  
+} else {
+  cat('\n<div style="padding:20px; background:#f8d7da; border:1px solid #f5c2c7; border-radius:5px; margin:20px 0;">\n')
+  cat('  <h4 style="color:#842029; margin-top:0;">❌ File Not Found</h4>\n')
+  cat('  <p style="color:#842029; margin-bottom:0;">No lollipop PDF file found. Looking for pattern: <code>*_Lollipop_Canonical.pdf</code></p>\n')
+  cat('</div>\n')
+}
+```
+
+---
+
+# Population Comparison Analysis
+
+## 3. Genomics England Database Comparison
+
+This section presents a comparative analysis between BCI patient variants and the Genomics England rare disease cohort. This comparison is essential for assessing variant rarity and identifying potentially novel or ultra-rare variants that may be clinically significant.
+
+**Analysis Methodology:**
+- Variants are matched based on genomic coordinates and allelic composition
+- Population frequencies from heterozygous, homozygous, and hemizygous carriers are reported
+- Match types indicate the precision of variant correspondence
+
+**Clinical Implications:**
+- Variants absent from GE may represent rare or novel mutations
+- High-frequency variants in GE suggest benign population variants
+- Discordant clinical interpretations warrant further investigation
+
+```{r ge-comparison-table}
+#| echo: false
+
+# Load comparison data
+comparison_files <- list.files(data_dir, pattern = "*_bci_patients_compared_ge_small_variants.rds", full.names = TRUE)
+
+if (length(comparison_files) > 0) {
+  bci_GE_comparison <- map_dfr(comparison_files, ~{
+    gene_name <- str_extract(basename(.x), "^[^_]+")
+    data <- readRDS(.x)
+    if (is.data.frame(data)) {
+      if (nrow(data) > 0) {
+        data %>%
+          mutate(Gene = gene_name, .before = 1)
+      } else {
+        # Return empty tibble with expected structure
+        tibble(
+          Gene = character(),
+          Variant = character(),
+          Location = character(),
+          Allele = character(),
+          Existing_variation = character(),
+          Patient_REF = character(),
+          ID_variant = character(),
+          CHROM_variant = character(),
+          POS_variant = numeric(),
+          REF_variant = character(),
+          ALT_variant = character(),
+          Existing_variation_annotation = character(),
+          IMPACT_annotation = character(),
+          Het_samples = character(),
+          Hom_samples = character(),
+          Hemi_samples = character(),
+          match_type = character()
+        )
+      }
+    } else {
+      NULL
+    }
+  })
+  
+  if (!is.null(bci_GE_comparison)) {
+    # Select columns for display
+    display_cols <- c(
+      "Gene", "Patient_REF", "Variant", "Location", "Allele",
+      "IMPACT_annotation", "match_type", "Het_samples", "Hom_samples", "Hemi_samples",
+      "Existing_variation", "ID_variant", "CHROM_variant", "POS_variant",
+      "REF_variant", "ALT_variant"
+    )
+    
+    # Filter to available columns
+    available_cols <- intersect(display_cols, names(bci_GE_comparison))
+    
+    if (nrow(bci_GE_comparison) > 0) {
+      # Create interactive table with data
+      bci_GE_comparison %>%
+        select(any_of(available_cols)) %>%
+        datatable(
+          caption = "BCI Patients vs Genomics England Comparison",
+          filter = 'top',
+          options = list(
+            pageLength = 10,
+            scrollX = TRUE,
+            autoWidth = TRUE,
+            columnDefs = list(
+              list(className = 'dt-center', targets = '_all')
+            ),
+            dom = 'Bfrtip',
+            buttons = c('copy', 'csv', 'excel')
+          ),
+          rownames = FALSE,
+          class = 'cell-border stripe hover'
+        ) %>%
+        formatStyle(
+          'IMPACT_annotation',
+          backgroundColor = styleEqual(
+            c('HIGH', 'MODERATE', 'LOW', 'MODIFIER'),
+            c('#ffcccc', '#ffffcc', '#ccffcc', '#e6e6e6')
+          )
+        )
+    } else {
+      # Create empty interactive table with structure
+      cat("ℹ️No matching variants found in Genomics England database for this gene.\n\n")
+      
+      # Show empty table structure
+      tibble(
+        Gene = character(),
+        Patient_REF = character(),
+        Variant = character(),
+        Location = character(),
+        Allele = character(),
+        IMPACT_annotation = character(),
+        match_type = character()
+      ) %>%
+        datatable(
+          caption = "BCI Patients vs Genomics England Comparison (Empty)",
+          options = list(
+            pageLength = 10,
+            scrollX = TRUE,
+            dom = 'Bfrtip',
+            buttons = c('copy', 'csv', 'excel')
+          ),
+          rownames = FALSE,
+          class = 'cell-border stripe hover'
+        )
+    }
+  } else {
+    cat("Could not load comparison data.")
+  }
+} else {
+  cat("No comparison RDS files found in data directory.")
+}
+```
+
+## 4. Clinical and Demographic Metadata Comparison
+
+This section presents a comparative analysis of clinical and demographic characteristics between BCI patients harboring variants in {{GENE_NAME}} and matched Genomics England participants. Understanding these metadata differences is crucial for contextualizing variant interpretations and identifying potential cohort-specific biases.
+
+**Analysis Components:**
+- Demographic distribution comparisons (age, sex, ancestry)
+- Clinical phenotype enrichment analysis
+- Disease presentation patterns
+- Cohort composition and ascertainment differences
+
+### 4.1 Metadata Visualization
+
+The following visualizations compare key demographic and clinical variables between BCI patients and the Genomics England reference cohort.
+
+```{r metadata-plots}
+#| echo: false
+#| results: asis
+
+# Look for metadata comparison plots
+metadata_plot_files <- list.files(data_dir, pattern = "*_metadata.*\\.pdf$", full.names = TRUE)
+
+if (length(metadata_plot_files) > 0) {
+  # Check if files are mock data
+  is_mock <- any(grepl("mock", metadata_plot_files, ignore.case = TRUE))
+  
+  if (is_mock) {
+    cat('\n<div style="padding:20px; background:#fff3cd; border:1px solid #ffc107; border-radius:5px; margin:20px 0;">\n')
+    cat('  <h4 style="color:#856404; margin-top:0;">⚠️ Mock Data Notice</h4>\n')
+    cat('  <p style="color:#856404; margin-bottom:0;">The metadata comparison plots are not displayed as they contain mock/simulated data for demonstration purposes only. Real metadata visualizations will be generated when processing actual patient cohorts.</p>\n')
+    cat('</div>\n\n')
+  } else {
+    # Display actual metadata plots - convert PDF to PNG like lollipop plots
+    pdf_path <- metadata_plot_files[1]
+    
+    # Try to convert PDF to images
+    if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+      tryCatch({
+        # Get PDF info
+        pdf_info <- pdftools::pdf_info(pdf_path)
+        num_pages <- pdf_info$pages
+        
+        cat('\n<!-- Metadata comparison visualization -->\n')
+        
+        # Convert each page to PNG
+        for (page_num in 1:num_pages) {
+          # Render page as image at high resolution
+          img <- pdftools::pdf_render_page(pdf_path, page = page_num, dpi = 300)
+          
+          # Save as PNG in working directory
+          png_filename <- paste0("metadata_page_", page_num, ".png")
+          png::writePNG(img, png_filename)
+          
+          cat('\n<div style="margin: 30px 0;">\n')
+          
+          # Display title only if multiple pages
+          if (num_pages > 1) {
+            cat('  <h5 style="margin-bottom:15px; color:#495057; font-weight:600;">Metadata Plot ', page_num, '</h5>\n', sep = "")
+          }
+          
+          # Include image with proper styling
+          cat('  <img src="', png_filename, '" style="width:100%; height:auto; border:1px solid #dee2e6; border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="Metadata comparison plot ', page_num, '" />\n', sep = "")
+          cat('</div>\n')
+        }
+        
+        cat('\n<!-- End metadata comparison visualization -->\n\n')
+        
+      }, error = function(e) {
+        # Fallback: show PDF with embed if conversion fails
+        cat('\n<div style="width:100%; margin:20px 0;">\n')
+        cat('  <embed src="', pdf_path, '" type="application/pdf" width="100%" height="800px" style="border:none;" />\n', sep = "")
+        cat('</div>\n\n')
+      })
+    } else {
+      # Fallback: show PDF if pdftools not available
+      cat('\n<div style="width:100%; margin:20px 0;">\n')
+      cat('  <embed src="', pdf_path, '" type="application/pdf" width="100%" height="800px" style="border:none;" />\n', sep = "")
+      cat('</div>\n\n')
+    }
+  }
+} else {
+  cat("ℹ️ No metadata comparison plots found for this gene.\n")
+}
+```
+
+### 4.2 Metadata Summary Statistics
+
+This table provides a quantitative summary of the metadata comparison, including statistical tests for significant differences between cohorts.
+
+```{r metadata-summary-table}
+#| echo: false
+#| results: asis
+
+# Look for metadata CSV files
+metadata_csv_files <- list.files(data_dir, pattern = ".*_csv\\.csv$|.*_metadata.*\\.csv$", full.names = TRUE)
+
+if (length(metadata_csv_files) > 0) {
+  # Check if files are mock data
+  is_mock <- any(grepl("mock", metadata_csv_files, ignore.case = TRUE))
+  
+  if (is_mock) {
+    cat('\n<div style="padding:20px; background:#fff3cd; border:1px solid #ffc107; border-radius:5px; margin:20px 0;">\n')
+    cat('  <h4 style="color:#856404; margin-top:0;">⚠️ Mock Data Notice</h4>\n')
+    cat('  <p style="color:#856404; margin-bottom:0;">Metadata summary statistics are not displayed as they contain mock/simulated data for demonstration purposes only. Real metadata summaries will be generated when processing actual patient cohorts.</p>\n')
+    cat('</div>\n\n')
+  } else {
+    # Load and display actual metadata
+    metadata_summary <- read_csv(metadata_csv_files[1], show_col_types = FALSE)
+    
+    if (nrow(metadata_summary) > 0) {
+      metadata_summary %>%
+        datatable(
+          caption = "Metadata Comparison Summary Statistics",
+          filter = 'top',
+          options = list(
+            pageLength = 10,
+            scrollX = TRUE,
+            autoWidth = TRUE,
+            dom = 'Bfrtip',
+            buttons = c('copy', 'csv', 'excel')
+          ),
+          rownames = FALSE,
+          class = 'cell-border stripe hover'
+        )
+    } else {
+      cat("ℹ️ Metadata summary table is empty.\n")
+    }
+  }
+} else {
+  cat("ℹ️ No metadata summary CSV files found for this gene.\n")
+}
+```
+
+**Interpretation Notes:**
+- Significant demographic differences may indicate ascertainment bias or cohort-specific characteristics
+- Clinical phenotype enrichment suggests potential gene-disease associations
+- Population stratification should be considered when interpreting variant frequencies
+
+---
+
+# Report Info
+
+**Pipeline Information:**  
+- **Pipeline**: {{PROJECT_CODE}} - {{PROJECT_NAME}}  
+- **Gene Analyzed**: {{GENE_NAME}}  
+- **Report Format**: HTML-only (optimized for container size)
+- **Annotation Tool**: VEP (Variant Effect Predictor)  
+- **R Version**: `r R.version.string`  
+- **Analysis Date**: `r Sys.Date()`  
+
+**Container Optimization:**  
+- LaTeX removed to reduce container size by ~3GB (from ~8GB to ~5GB)
+- PDF generation disabled for Quarto reports
+- PDF loading capability maintained for existing plots
+- All analysis functionality preserved  
+
+---
+
+*This report was automatically generated by the {{PROJECT_CODE}} Nextflow bioinformatics pipeline using Quarto.*  
+*Project Bioinfo: {{PROJECT_AUTHOR}}*  
+*For questions, interpretations, or additional analyses, please contact the project team.*
+

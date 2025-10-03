@@ -1,16 +1,31 @@
 Bootstrap: docker
-From: continuumio/miniconda3:latest
+From: ubuntu:22.04
 
 %labels
     Author Daniel
-    Description "Hybrid Singularity container with R 4.3.3, Quarto, tidyverse, circlize, paletteer, Bioconductor packages, and reporting tools"
+    Description "Optimized container for Genomics England HPC with R 4.3.3, Quarto, tidyverse, circlize, paletteer, Bioconductor packages, and reporting tools - Genomics England compatible"
 
 %environment
     # Activate conda environment by default
-    export PATH=/opt/conda/envs/r_env/bin:$PATH
+    export PATH=/opt/miniconda3/envs/r_env/bin:/opt/miniconda3/bin:$PATH
+    export CONDA_PREFIX=/opt/miniconda3
+    export LANG=en_US.UTF-8
+    export LANGUAGE=en_US:en
+    export LC_ALL=en_US.UTF-8
+    export DEBIAN_FRONTEND=noninteractive
+    export TZ=Europe/London
+    
+    # Configure for headless graphics (no display needed)
+    export DISPLAY=:99
+    export QT_QPA_PLATFORM=offscreen
+    export MPLBACKEND=Agg
 
 %post
-    # Update system packages first
+    # Prevent interactive prompts during package installation
+    export DEBIAN_FRONTEND=noninteractive
+    export TZ=Europe/London
+
+    # Install essential system dependencies (including minimal X11 for headless graphics)
     apt-get update && apt-get install -y --no-install-recommends \
         wget \
         curl \
@@ -21,13 +36,45 @@ From: continuumio/miniconda3:latest
         libgit2-dev \
         libfontconfig1-dev \
         pandoc \
-        && rm -rf /var/lib/apt/lists/*
+        build-essential \
+        gfortran \
+        libblas-dev \
+        liblapack-dev \
+        libreadline-dev \
+        libbz2-dev \
+        liblzma-dev \
+        libpcre2-dev \
+        libicu-dev \
+        pkg-config \
+        locales \
+        libx11-6 \
+        libxext6 \
+        libxrender1 \
+        libxtst6 \
+        libxi6 \
+        libxrandr2 \
+        libxss1 \
+        libcairo2-dev \
+        libxt6 \
+        xvfb \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-    # Update conda base and install mamba
-    conda install -y mamba -n base -c conda-forge
+    # Set up locale
+    locale-gen en_US.UTF-8
 
-    # Create R 4.3.3 environment with all your original packages + reporting packages
-    mamba create -y -n r_env -c conda-forge -c bioconda \
+    # Install Miniconda manually (avoiding problematic conda packages with X11)
+    wget -q https://repo.anaconda.com/miniconda/Miniconda3-py310_23.5.2-0-Linux-x86_64.sh -O miniconda.sh
+    bash miniconda.sh -b -p /opt/miniconda3
+    rm miniconda.sh
+    /opt/miniconda3/bin/conda clean -afy
+    /opt/miniconda3/bin/conda config --set always_yes yes --set changeps1 no
+
+    # Install mamba for faster package resolution
+    /opt/miniconda3/bin/conda install -y mamba -n base -c conda-forge
+
+    # Create R environment with ESSENTIAL packages only (NO X11/GUI dependencies)
+    /opt/miniconda3/bin/mamba create -y -n r_env -c conda-forge -c bioconda \
         r-base=4.3.3 \
         r-essentials \
         r-tidyverse \
@@ -45,77 +92,110 @@ From: continuumio/miniconda3:latest
         r-jsonlite \
         r-gt \
         r-patchwork \
-        r-naniar \
-        r-summarytools \
-        r-pheatmap \
-        r-ggrepel \
-        r-viridis \
-        r-rcolorbrewer
+        r-pdftools \
+        r-png
 
-    # Activate environment and install additional packages from CRAN if needed
-    /opt/conda/envs/r_env/bin/R -e "
+    # Clean conda cache immediately
+    /opt/miniconda3/bin/conda clean -afy
 
-    required_packages <- c('knitr', 'rmarkdown', 'kableExtra', 'DT', 'plotly', 
-                          'htmlwidgets', 'jsonlite', 'gt', 'pheatmap', 'ggrepel')
-    
-    missing_packages <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]
-    
-    if(length(missing_packages) > 0) {
-        install.packages(missing_packages, repos = 'https://cran.rstudio.com/', dependencies = TRUE)
-    }
-    
-    cat('R packages installation completed\n')
+    # Install essential R packages via Rscript (if missing from conda) - PATH CORREGIDO
+    /opt/miniconda3/envs/r_env/bin/R -e "
+    required_packages <- c('knitr','rmarkdown','kableExtra','DT','plotly','htmlwidgets','jsonlite','gt','pdftools','png');
+    missing_packages <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)];
+    if(length(missing_packages) > 0) install.packages(missing_packages, repos='https://cran.rstudio.com/', dependencies=TRUE);
+    cat('Essential R packages installation completed\n')
     "
 
-    # Install Quarto CLI from official source
-    wget -qO- https://github.com/quarto-dev/quarto-cli/releases/download/v1.4.550/quarto-1.4.550-linux-amd64.deb -O quarto.deb
+    # Configure R for headless graphics
+    /opt/miniconda3/envs/r_env/bin/R -e "
+    # Set default graphics device to Cairo PNG for headless operation
+    options(device = function() {
+        cairo_ps(tempfile(fileext = '.ps'), width = 7, height = 7)
+    })
+    
+    # Test graphics capability
+    tryCatch({
+        png('/tmp/test.png')
+        plot(1:10)
+        dev.off()
+        file.remove('/tmp/test.png')
+        cat('Graphics test successful\n')
+    }, error = function(e) {
+        cat('Graphics test failed:', e\$message, '\n')
+    })
+    "
+
+    # Install Quarto CLI (specific version known to work with HPC environments)
+    wget -q https://github.com/quarto-dev/quarto-cli/releases/download/v1.4.550/quarto-1.4.550-linux-amd64.deb -O quarto.deb
     dpkg -i quarto.deb || apt-get install -f -y
     rm quarto.deb
 
-    # Verify Quarto installation
+    # CRITICAL: Remove ENTIRE problematic directories for GEL compatibility
+    # This aggressive approach removes ALL X11, SSL, cmake, and other problematic symlinks
+    
+    echo "Removing entire problematic directories for GEL compatibility..."
+    rm -rf /opt/miniconda3/share
+    echo "Removed entire share directory"
+    
+    rm -rf /opt/miniconda3/ssl
+    echo "Removed entire SSL directory"
+    
+    find /opt/miniconda3/lib -name "*.so.*" -type l -delete 2>/dev/null || true
+    echo "Removed problematic .so symlinks"
+    
+    # Additional cleanup of remaining problematic files
+    find /opt/miniconda3 -name "*XErrorDB*" -delete 2>/dev/null || true
+    find /opt/miniconda3 -name "*.desktop" -delete 2>/dev/null || true
+    find /opt/miniconda3 -name "*Xcms*" -delete 2>/dev/null || true
+    find /opt/miniconda3 -name "*X11*" -delete 2>/dev/null || true
+    find /opt/miniconda3 -name "*libX*" -delete 2>/dev/null || true
+    find /opt/miniconda3 -name "*cacert*" -delete 2>/dev/null || true
+    echo "Aggressive cleanup completed - all problematic symlinks removed"
+    find /opt/miniconda3 -name "*libX*" -delete 2>/dev/null || true
+    echo "Aggressive cleanup completed - all X11 and share symlinks removed"
+
+    # Additional comprehensive cleanup to reduce size and remove problematic files
+    apt-get autoremove -y
+    apt-get autoclean
+    rm -rf /var/lib/apt/lists/*
+    /opt/miniconda3/bin/conda clean -afy
+    rm -rf /opt/miniconda3/pkgs/*
+    
+    # Safe cleanup of temporary files (avoid system directories)
+    find /tmp -maxdepth 1 -name "*.tar.gz" -delete 2>/dev/null || true
+    find /tmp -maxdepth 1 -name "*.deb" -delete 2>/dev/null || true
+    find /tmp -maxdepth 1 -name "*.sh" -delete 2>/dev/null || true
+
+    # Verify critical installations
+    /opt/miniconda3/envs/r_env/bin/R --version
     quarto --version
-
-    # LaTeX for PDF generation (comentado para reducir tamaño, descomenta si necesitas PDF)
-    apt-get update && apt-get install -y --no-install-recommends \
-        texlive-latex-base texlive-latex-recommended \
-        texlive-latex-extra texlive-fonts-recommended \
-        && rm -rf /var/lib/apt/lists/*
-
-    # Clean up conda cache to reduce size
-    conda clean -afy
-
-    # Final verification
-    echo "Container build completed!"
-    echo "R version: $(/opt/conda/envs/r_env/bin/R --version | head -1)"
-    echo "Quarto version: $(quarto --version)"
+    echo "Container build completed successfully"
 
 %runscript
-    # Execute any command passed as arguments (flexible for Nextflow)
-    exec "$@"
+    # Default command (flexible for Nextflow)
+    exec /opt/miniconda3/envs/r_env/bin/R --no-save "$@"
 
 %apprun r
-    # Direct R access
-    exec /opt/conda/envs/r_env/bin/R --no-save "$@"
+    exec /opt/miniconda3/envs/r_env/bin/R "$@"
 
 %apprun rscript
-    # Rscript access
-    exec /opt/conda/envs/r_env/bin/Rscript "$@"
+    exec /opt/miniconda3/envs/r_env/bin/Rscript "$@"
 
 %apprun quarto
-    # Direct Quarto access
     exec quarto "$@"
 
 %help
-    This container includes:
-    - R 4.3.3 with tidyverse, circlize, paletteer, Bioconductor packages
-    - Quarto for document rendering
-    - Reporting packages: knitr, kableExtra, DT, plotly, gt
-    - All your original R packages for compatibility
+    This container provides R 4.3.3 with Quarto and essential packages for genomics analysis.
+    Optimized for Genomics England HPC environments.
     
     Usage examples:
-    singularity run container.sif Rscript script.R
-    singularity run container.sif quarto render document.qmd
-    singularity run --app r container.sif
-    singularity run --app quarto container.sif render doc.qmd
-
-## sudo singularity build container_r_quarto_hybrid.sif container_r_quarto_hybrid.def
+    - singularity exec container.sif R
+    - singularity exec container.sif Rscript script.R
+    - singularity exec container.sif quarto render document.qmd
+    
+    For Genomics England HPC:
+    module load singularity/4.1.1
+    singularity pull container.sif docker://docker-remote.artifactory.aws.gel.ac/username/image:tag
+    
+    Local build:
+    sudo singularity build container_r_quarto_hybrid.sif container_r_quarto_hybrid.def

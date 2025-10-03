@@ -18,6 +18,10 @@ process extractStructVarPartID {
 
     script:
     """
+    # Configurar variables de entorno para autenticación
+    #export HOME=/root
+    #export USER=root
+    
     echo "Processing: ${gene_name} with annotation file: ${structvar_annot_file} and labkey: ${labkey_main}"
     extractStructVarPartID.R ${structvar_annot_file} ${gene_name} ${labkey_main}
 

@@ -14,6 +14,7 @@ results/
 *.Rproj
 .Rproj.user
 .Rhistory
+.rds
 .RData
 .Ruserdata
 .lintr

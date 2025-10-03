@@ -18,6 +18,10 @@ process extractSmallVarPartID {
 
     script:
     """
+    # Configurar variables de entorno para autenticación
+    #export HOME=/root
+    #export USER=root
+    
     echo "Processing: ${gene_name} with annotation file: ${smallvar_annot_file} and labkey: ${labkey_main}"
     extractSmallVarPartID.R ${smallvar_annot_file} ${gene_name} ${labkey_main}
 

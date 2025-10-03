@@ -46,9 +46,10 @@ annot_var_table <- variant_table %>%
   rename(Variant = Uploaded_variation) %>%
   distinct()
 
-# Work only with Canonical transcripts
+# Clean output table ---------------------------------------------------------------
 annot_var_table <- annot_var_table %>%
-  filter(CANONICAL == "YES")
+  filter(CANONICAL == "YES") %>%
+  filter(SYMBOL == gene_name)
 
 # Print summary ----------------------------------------------------------------
 cat("\nGlimpse of table data of Variants \n")

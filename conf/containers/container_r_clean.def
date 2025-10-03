@@ -1,30 +1,160 @@
 Bootstrap: docker
-From: continuumio/miniconda3:latest
+From: ubuntu:22.04
 
 %labels
-    Description "Singularity container with R 4.3.3, tidyverse, circlize, paletteer, and Bioconductor packages"
+    Author "dmouzo"
+    Description "R 4.3.3 + tidyverse + circlize + Bioconductor - Genomics England compatible"
 
 %environment
-    # Activate default conda environment
-    export PATH=/opt/conda/envs/r_env/bin:$PATH
+    # Conda environment paths
+    export PATH=/opt/miniconda3/envs/r_env/bin:/opt/miniconda3/bin:$PATH
+    export CONDA_PREFIX=/opt/miniconda3
+    
+    # System locale
+    export LANG=en_US.UTF-8
+    export LC_ALL=en_US.UTF-8
+    
+    # Environment variables for non-interactive installation
+    export DEBIAN_FRONTEND=noninteractive
+    export TZ=Europe/London
+    
+    # Headless graphics configuration
+    export DISPLAY=:99
+    export QT_QPA_PLATFORM=offscreen
+    export MPLBACKEND=Agg
 
 %post
-    # Update conda and prepare environment
-    conda install -y mamba -n base -c conda-forge
-    mamba create -y -n r_env -c conda-forge -c bioconda r-base=4.3.3 \
+    # Set environment variables for installation
+    export DEBIAN_FRONTEND=noninteractive
+    export TZ=Europe/London
+
+    # Update system and install essential dependencies
+    apt-get update && apt-get install -y --no-install-recommends \
+        wget \
+        curl \
+        ca-certificates \
+        build-essential \
+        libxml2-dev \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        locales \
+        libx11-6 \
+        libxext6 \
+        libcairo2-dev \
+        xvfb
+
+    # Configure locale
+    locale-gen en_US.UTF-8
+
+    # Install Miniconda manually (NOT using conda base image)
+    wget -q https://repo.anaconda.com/miniconda/Miniconda3-py310_23.5.2-0-Linux-x86_64.sh -O miniconda.sh
+    bash miniconda.sh -b -p /opt/miniconda3
+    rm miniconda.sh
+    
+    # Clean conda cache
+    /opt/miniconda3/bin/conda clean -afy
+    /opt/miniconda3/bin/conda config --set always_yes yes --set changeps1 no
+
+    # Install mamba for faster dependency resolution
+    /opt/miniconda3/bin/conda install -y mamba -n base -c conda-forge
+
+    # Create R environment with all required packages
+    /opt/miniconda3/bin/mamba create -y -n r_env -c conda-forge -c bioconda \
+        r-base=4.3.3 \
         r-essentials \
         r-tidyverse \
         r-circlize \
+        r-patchwork \
         r-paletteer \
         bioconductor-rtracklayer \
         bioconductor-genomicranges \
         bioconductor-trackviewer
 
-    # Clean up to reduce size
-    conda clean -afy
+    # Install essential R packages via Rscript (if missing from conda)
+    /opt/miniconda3/envs/r_env/bin/R -e "
+    required_packages <- c('circlize','paletteer','rtracklayer','GenomicRanges','trackViewer','Rlabkey');
+    missing_packages <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)];
+    if(length(missing_packages) > 0) install.packages(missing_packages, repos='https://cran.rstudio.com/', dependencies=TRUE);
+    cat('Essential R packages installation completed\n')
+    "
+
+    # Explicitly install Rlabkey from CRAN (if not already available)
+    /opt/miniconda3/envs/r_env/bin/R -e "
+    if(!requireNamespace('Rlabkey', quietly = TRUE)) {
+        install.packages('Rlabkey', repos='https://cran.rstudio.com/', dependencies=TRUE);
+        cat('Rlabkey package installed successfully\n');
+    } else {
+        cat('Rlabkey package already available\n');
+    }
+    "
+
+    # Configure R for headless graphics
+    /opt/miniconda3/envs/r_env/bin/R -e "
+    # Set default graphics device to Cairo for headless operation
+    options(device = function() {
+        cairo_ps(tempfile(fileext = '.ps'), width = 7, height = 7)
+    })
+    
+    # Test graphics capability
+    tryCatch({
+        png('/tmp/test.png')
+        plot(1:10)
+        dev.off()
+        file.remove('/tmp/test.png')
+        cat('Graphics test successful\n')
+    }, error = function(e) {
+        cat('Graphics test failed:', e\$message, '\n')
+    })
+    "
+
+    # CRITICAL: Remove ENTIRE problematic directories for GEL compatibility
+    # This aggressive approach removes ALL X11, SSL, cmake, and other problematic symlinks
+    
+    echo "Removing entire problematic directories for GEL compatibility..."
+    rm -rf /opt/miniconda3/share/
+    echo "Removed entire share directory"
+    
+    rm -rf /opt/miniconda3/ssl/
+    echo "Removed entire SSL directory"
+    
+    find /opt/miniconda3/lib -name "*.so.*" -type l -delete 2>/dev/null || true
+    echo "Removed problematic .so symlinks"
+    
+    # Additional cleanup of remaining problematic files
+    find /opt/miniconda3 -name "*XErrorDB*" -delete 2>/dev/null || true
+    find /opt/miniconda3 -name "*.desktop" -delete 2>/dev/null || true
+    find /opt/miniconda3 -name "*Xcms*" -delete 2>/dev/null || true
+    find /opt/miniconda3 -name "*X11*" -delete 2>/dev/null || true
+    find /opt/miniconda3 -name "*libX*" -delete 2>/dev/null || true
+    find /opt/miniconda3 -name "*cacert*" -delete 2>/dev/null || true
+    echo "Aggressive cleanup completed - all problematic symlinks removed"
+
+    # Comprehensive cleanup to reduce size
+    apt-get autoremove -y
+    apt-get autoclean
+    rm -rf /var/lib/apt/lists/*
+    /opt/miniconda3/bin/conda clean -afy
+    rm -rf /opt/miniconda3/pkgs/*
+    
+    # Safe cleanup of temporary files (avoid system directories)
+    find /tmp -maxdepth 1 -name "*.tar.gz" -delete 2>/dev/null || true
+    find /tmp -maxdepth 1 -name "*.deb" -delete 2>/dev/null || true
+    find /tmp -maxdepth 1 -name "*.sh" -delete 2>/dev/null || true
+
+    # Verify critical installations
+    /opt/miniconda3/envs/r_env/bin/R --version
+    echo "Container build completed successfully"
 
 %runscript
-    # If you run the container directly, open R
-    exec R "$@"
+    # Default: open R session
+    exec /opt/miniconda3/envs/r_env/bin/R --no-save "$@"
 
-# sudo singularity build container_r_clean.sif container_r_clean.def
+%apprun r
+    exec /opt/miniconda3/envs/r_env/bin/R "$@"
+
+%apprun rscript  
+    exec /opt/miniconda3/envs/r_env/bin/Rscript "$@"
+
+# BUILD COMMANDS:
+# Local: sudo singularity build container_r_clean.sif container_r_clean.def
+# Docker: docker build -f Dockerfile.r_clean -t damouzo/container_r_clean:latest .

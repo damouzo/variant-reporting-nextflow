@@ -1,0 +1,158 @@
+# Base image: Ubuntu 22.04 (more compatible with Genomics England HPC)
+FROM ubuntu:22.04
+
+LABEL maintainer="Daniel"
+LABEL description="Optimized container for Genomics England HPC with R 4.3.3, Quarto, and reporting tools"
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/London
+
+# Set environment variables for conda
+ENV PATH=/opt/miniconda3/envs/r_env/bin:/opt/miniconda3/bin:$PATH
+ENV CONDA_PREFIX=/opt/miniconda3
+
+# Configure for headless graphics (no display needed)
+ENV DISPLAY=:99
+ENV QT_QPA_PLATFORM=offscreen
+ENV MPLBACKEND=Agg
+
+# Install essential system dependencies (including minimal X11 for headless graphics)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        wget \
+        curl \
+        ca-certificates \
+        libxml2-dev \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        libgit2-dev \
+        libfontconfig1-dev \
+        pandoc \
+        build-essential \
+        gfortran \
+        libblas-dev \
+        liblapack-dev \
+        libreadline-dev \
+        libbz2-dev \
+        liblzma-dev \
+        libpcre2-dev \
+        libicu-dev \
+        pkg-config \
+        locales \
+        libx11-6 \
+        libxext6 \
+        libxrender1 \
+        libxtst6 \
+        libxi6 \
+        libxrandr2 \
+        libxss1 \
+        libcairo2-dev \
+        libxt6 \
+        xvfb \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Set up locale
+RUN locale-gen en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+# Install Miniconda manually (avoiding problematic conda packages with X11)
+RUN wget -q https://repo.anaconda.com/miniconda/Miniconda3-py310_23.5.2-0-Linux-x86_64.sh -O miniconda.sh \
+    && bash miniconda.sh -b -p /opt/miniconda3 \
+    && rm miniconda.sh \
+    && /opt/miniconda3/bin/conda clean -afy \
+    && /opt/miniconda3/bin/conda config --set always_yes yes --set changeps1 no
+
+# Install mamba for faster package resolution
+RUN /opt/miniconda3/bin/conda install -y mamba -n base -c conda-forge
+
+# Create R environment with ESSENTIAL packages only (NO X11/GUI dependencies)
+RUN /opt/miniconda3/bin/mamba create -y -n r_env -c conda-forge -c bioconda \
+        r-base=4.3.3 \
+        r-essentials \
+        r-tidyverse \
+        r-circlize \
+        r-paletteer \
+        bioconductor-rtracklayer \
+        bioconductor-genomicranges \
+        bioconductor-trackviewer \
+        r-knitr \
+        r-rmarkdown \
+        r-kableextra \
+        r-dt \
+        r-plotly \
+        r-htmlwidgets \
+        r-jsonlite \
+        r-gt \
+        r-patchwork \
+        r-pdftools \
+        r-png \
+    && /opt/miniconda3/bin/conda clean -afy
+
+# Install essential R packages via Rscript (if missing from conda)
+RUN /opt/miniconda3/envs/r_env/bin/R -e "\
+    required_packages <- c('knitr','rmarkdown','kableExtra','DT','plotly','htmlwidgets','jsonlite','gt','pdftools','png'); \
+    missing_packages <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]; \
+    if(length(missing_packages) > 0) install.packages(missing_packages, repos='https://cran.rstudio.com/', dependencies=TRUE); \
+    cat('Essential R packages installation completed\n')"
+
+# Configure R for headless graphics  
+RUN /opt/miniconda3/envs/r_env/bin/R -e "\
+    options(device = function() { cairo_ps(tempfile(fileext = '.ps'), width = 7, height = 7) }); \
+    tryCatch({ \
+        png('/tmp/test.png'); \
+        plot(1:10); \
+        dev.off(); \
+        file.remove('/tmp/test.png'); \
+        cat('Graphics test successful\n'); \
+    }, error = function(e) { \
+        cat('Graphics test failed:', e\$message, '\n'); \
+    })"
+
+# Install Quarto CLI (specific version known to work with HPC environments)
+RUN wget -q https://github.com/quarto-dev/quarto-cli/releases/download/v1.4.550/quarto-1.4.550-linux-amd64.deb -O quarto.deb \
+    && dpkg -i quarto.deb || apt-get install -f -y \
+    && rm quarto.deb
+
+# CRITICAL: Remove ENTIRE problematic directories for GEL compatibility
+# This aggressive approach removes ALL X11, SSL, cmake, and other problematic symlinks
+RUN echo "Removing entire problematic directories for GEL compatibility..." \
+    && rm -rf /opt/miniconda3/share \
+    && echo "Removed entire share directory" \
+    && rm -rf /opt/miniconda3/ssl \
+    && echo "Removed entire SSL directory" \
+    && find /opt/miniconda3/lib -name "*.so.*" -type l -delete 2>/dev/null || true \
+    && echo "Removed problematic .so symlinks" \
+    && find /opt/miniconda3 -name "*XErrorDB*" -delete 2>/dev/null || true \
+    && find /opt/miniconda3 -name "*.desktop" -delete 2>/dev/null || true \
+    && find /opt/miniconda3 -name "*Xcms*" -delete 2>/dev/null || true \
+    && find /opt/miniconda3 -name "*X11*" -delete 2>/dev/null || true \
+    && find /opt/miniconda3 -name "*libX*" -delete 2>/dev/null || true \
+    && find /opt/miniconda3 -name "*cacert*" -delete 2>/dev/null || true \
+    && echo "Aggressive cleanup completed - all problematic symlinks removed"
+
+# NO LATEX INSTALLATION - Saves ~2-3GB (HTML-only output)
+# LaTeX removed to reduce container size for better HPC deployment
+
+# Additional comprehensive cleanup to reduce size and remove problematic files
+RUN apt-get autoremove -y \
+    && apt-get autoclean \
+    && rm -rf /var/lib/apt/lists/* \
+    && /opt/miniconda3/bin/conda clean -afy \
+    && rm -rf /opt/miniconda3/pkgs/* \
+    && find /tmp -maxdepth 1 -name "*.tar.gz" -delete 2>/dev/null || true \
+    && find /tmp -maxdepth 1 -name "*.deb" -delete 2>/dev/null || true \
+    && find /tmp -maxdepth 1 -name "*.sh" -delete 2>/dev/null || true
+
+# Verify critical installations
+RUN /opt/miniconda3/envs/r_env/bin/R --version \
+    && quarto --version \
+    && echo "Container build completed successfully"
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command (flexible for Nextflow)
+CMD [ "/opt/miniconda3/envs/r_env/bin/R", "--no-save" ]

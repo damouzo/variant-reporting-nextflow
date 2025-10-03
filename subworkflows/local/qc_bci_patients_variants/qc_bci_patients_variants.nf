@@ -6,6 +6,7 @@ include { cleanFormatBciPatientsVar } from '../../../modules/local/R/bciPatients
 include { compareBCIwithGEvar } from '../../../modules/local/R/bciPatientsVariants/compareBCIwithGEvar.nf'
 include { plotQCBciPatientsVar } from '../../../modules/local/R/bciPatientsVariants/plotQCBciPatientsVar.nf'
 include { plotMetadataBCIvsGE } from '../../../modules/local/R/bciPatientsVariants/plotMetadataBCIvsGE.nf'
+include { generateReport } from '../../../modules/local/quarto/generateReport.nf'
 
 
 workflow QC_BCI_PATIENTS_VARIANTS {
@@ -105,11 +106,11 @@ workflow QC_BCI_PATIENTS_VARIANTS {
         }
 
     metadata_plot_input_ch = compareBCIwithGEvar.out.BciVsGe_rds
-    .join(cleanFormatBciPatientsVar.out.clean_rds) 
-    .join(part_metadata_ch)  
-    .map { gene_name, comparison_rds, bci_rds, metadata_file -> 
-        tuple(gene_name, comparison_rds, bci_rds, metadata_file)
-    }
+        .join(cleanFormatBciPatientsVar.out.clean_rds) 
+        .join(part_metadata_ch)  
+        .map { gene_name, comparison_rds, bci_rds, metadata_file -> 
+            tuple(gene_name, comparison_rds, bci_rds, metadata_file)
+        }
 
     // RUN metadata comparison plots
     plotMetadataBCIvsGE(metadata_plot_input_ch)
@@ -127,11 +128,56 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     plotQCBciPatientsVar(plot_qc_input_ch)
             // out.plots: path(plot_file)
 
+    
+    // Collect all output files for the report by gene
+    qc_plots_keyed = plotQCBciPatientsVar.out.plots
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+
+    metadata_plots_keyed = plotMetadataBCIvsGE.out.plots
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+        
+    metadata_csv_keyed = plotMetadataBCIvsGE.out.csv
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+    
+    template_file = Channel.fromPath("${params.templates_dir}/quarto/bci_patients_variants_report.qmd")
+    
+    // Prepare input files for the report
+    report_files_ch = cleanFormatBciPatientsVar.out.clean_rds
+        .join(compareBCIwithGEvar.out.BciVsGe_rds)
+        .join(metadata_csv_keyed)
+        .join(qc_plots_keyed)
+        .join(metadata_plots_keyed)
+        .map { gene_name, clean_rds, comparison_rds, metadata_csv, qc_plots, metadata_plots ->
+            def input_files = [clean_rds, comparison_rds, metadata_csv, qc_plots, metadata_plots]
+            def report_type = "bci_patients_variants_report"
+            tuple(gene_name, report_type, input_files)
+        }
+        .combine(template_file)
+        .map { gene_name, report_type, input_files, template ->
+            tuple(gene_name, report_type, template, input_files) 
+        }
+    
+    // Generate the Quarto report
+    generateReport(report_files_ch)
+
     // Collect versions
     ch_versions = ch_versions.mix(cleanFormatBciPatientsVar.out.versions)
     ch_versions = ch_versions.mix(compareBCIwithGEvar.out.versions)
     ch_versions = ch_versions.mix(plotMetadataBCIvsGE.out.versions) 
     ch_versions = ch_versions.mix(plotQCBciPatientsVar.out.versions)
+    ch_versions = ch_versions.mix(generateReport.out.versions)
 
     emit:
     clean_tsv           = cleanFormatBciPatientsVar.out.clean_tsv     // File TSV
@@ -140,5 +186,6 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     comparison_tsv      = compareBCIwithGEvar.out.BciVsGe_tsv         // File TSV
     comparison_rds      = compareBCIwithGEvar.out.BciVsGe_rds         // tuple(val(gene_name), path(rds_file))
     metadata_plots      = plotMetadataBCIvsGE.out.plots               // Metadata comparison PDFs
+    html_reports        = generateReport.out.html_report              // HTML reports
     versions            = ch_versions
 }

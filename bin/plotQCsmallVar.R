@@ -2421,7 +2421,7 @@ if (nrow(canonical_variants) > 0) {
         )
     } else if (var %in% c("normalised_disease_group", "normalised_disease_sub_group")) {
       # Special handling for disease group variables - REST group first, then by frequency
-      df_count <- df_count %>%
+      df_count <- df_count %>% 
         mutate(
           is_rest = var_binned == "REST, other groups or combinations",
           sort_order = ifelse(is_rest, Inf, -pct)  # REST gets highest value, others by negative pct (desc)
@@ -2568,7 +2568,7 @@ if (nrow(canonical_variants) > 0) {
     cat("No valid plots generated for canonical variants metadata\n")
   }
 } else {
-  cat("No canonical variants found in the data\n")
+  cat("No canonical variants found in the  data\n")
 }
 
 

@@ -460,7 +460,8 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
     short_label_plots <- list()
     long_label_plots <- list()
     
-    for (var_name in names(plot_list)
+    for (var_name in names(plot_list)) {  
+      if (plot_list[[var_name]]$max_label_length > 25) {
         long_label_plots[[var_name]] <- plot_list[[var_name]]$plot
       } else {
         short_label_plots[[var_name]] <- plot_list[[var_name]]$plot

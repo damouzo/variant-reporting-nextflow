@@ -118,7 +118,7 @@ if (nrow(all_matches) > 0) {
 # Create comparison table
 if (nrow(all_matches) > 0) {
   # Select columns of interest for BCI and GE
-  bci_selected <- bci_var_table[all_matches$bci_row, c("Variant", "Location", "Allele", "Existing_variation", "Patient_REF", "Patient_Centre_REF")]
+  bci_selected <- bci_var_table[all_matches$bci_row, c("Variant", "Location", "Allele", "Existing_variation", "Patient_REF", "Patient_Centre_REF","CLIN_SIG")]
   ge_selected <- ge_variant_table[all_matches$ge_row, c("ID_variant", "CHROM_variant", "POS_variant", "REF_variant", "ALT_variant", "Existing_variation_annotation", "IMPACT_annotation", "CLIN_SIG_annotation","Het_samples", "Hom_samples", "Hemi_samples")]
   
   # Combine tables
@@ -141,6 +141,8 @@ if (nrow(all_matches) > 0) {
     Allele = character(0),
     Existing_variation = character(0),
     Patient_REF = character(0),
+    Patient_Centre_REF = character(0),
+    CLIN_SIG = character(0),
     ID_variant = character(0),
     CHROM_variant = character(0),
     POS_variant = numeric(0),
@@ -148,6 +150,7 @@ if (nrow(all_matches) > 0) {
     ALT_variant = character(0),
     Existing_variation_annotation = character(0),
     IMPACT_annotation = character(0),
+    CLIN_SIG_annotation = character(0),
     Het_samples = character(0),
     Hom_samples = character(0),
     Hemi_samples = character(0),

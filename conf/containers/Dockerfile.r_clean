@@ -1,0 +1,138 @@
+# R 4.3.3 + tidyverse + circlize + Bioconductor - Genomics England Compatible
+# Base image: Ubuntu 22.04 (more GEL HPC compatible than conda images)
+FROM ubuntu:22.04
+
+LABEL maintainer="dmouzo"
+LABEL description="R 4.3.3 + tidyverse + circlize + Bioconductor - Genomics England compatible"
+
+# Environment variables for non-interactive installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/London
+
+# Conda environment paths  
+ENV PATH=/opt/miniconda3/envs/r_env/bin:/opt/miniconda3/bin:$PATH
+ENV CONDA_PREFIX=/opt/miniconda3
+
+# System locale
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+
+# Headless graphics configuration (NO display required)
+ENV DISPLAY=:99
+ENV QT_QPA_PLATFORM=offscreen
+ENV MPLBACKEND=Agg
+
+# Install essential system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        wget \
+        curl \
+        ca-certificates \
+        build-essential \
+        libxml2-dev \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        locales \
+        # Minimal X11 libraries for headless graphics (NOT full X11)
+        libx11-6 \
+        libxext6 \
+        libcairo2-dev \
+        xvfb \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Configure system locale
+RUN locale-gen en_US.UTF-8
+
+# Install Miniconda manually (avoiding problematic conda base images)
+RUN wget -q https://repo.anaconda.com/miniconda/Miniconda3-py310_23.5.2-0-Linux-x86_64.sh -O miniconda.sh \
+    && bash miniconda.sh -b -p /opt/miniconda3 \
+    && rm miniconda.sh \
+    && /opt/miniconda3/bin/conda clean -afy \
+    && /opt/miniconda3/bin/conda config --set always_yes yes --set changeps1 no
+
+# Install mamba for faster package resolution
+RUN /opt/miniconda3/bin/conda install -y mamba -n base -c conda-forge
+
+# Create R environment with all required packages
+RUN /opt/miniconda3/bin/mamba create -y -n r_env -c conda-forge -c bioconda \
+        r-base=4.3.3 \
+        r-essentials \
+        r-tidyverse \
+        r-circlize \
+        r-patchwork \
+        r-paletteer \
+        bioconductor-rtracklayer \
+        bioconductor-genomicranges \
+        bioconductor-trackviewer \
+    && /opt/miniconda3/bin/conda clean -afy
+
+# Install essential R packages via Rscript (if missing from conda)
+RUN /opt/miniconda3/envs/r_env/bin/R -e "\
+    required_packages <- c('circlize','paletteer','rtracklayer','GenomicRanges','trackViewer','Rlabkey'); \
+    missing_packages <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]; \
+    if(length(missing_packages) > 0) install.packages(missing_packages, repos='https://cran.rstudio.com/', dependencies=TRUE); \
+    cat('Essential R packages installation completed\n')"
+
+# Explicitly install Rlabkey from CRAN (if not already available)
+RUN /opt/miniconda3/envs/r_env/bin/R -e "\
+    if(!requireNamespace('Rlabkey', quietly = TRUE)) { \
+        install.packages('Rlabkey', repos='https://cran.rstudio.com/', dependencies=TRUE); \
+        cat('Rlabkey package installed successfully\n'); \
+    } else { \
+        cat('Rlabkey package already available\n'); \
+    }"
+
+# Configure R for headless graphics  
+RUN /opt/miniconda3/envs/r_env/bin/R -e "\
+    options(device = function() { cairo_ps(tempfile(fileext = '.ps'), width = 7, height = 7) }); \
+    tryCatch({ \
+        png('/tmp/test.png'); \
+        plot(1:10); \
+        dev.off(); \
+        file.remove('/tmp/test.png'); \
+        cat('Graphics test successful\n'); \
+    }, error = function(e) { \
+        cat('Graphics test failed:', e\$message, '\n'); \
+    })"
+
+# CRITICAL: Remove ENTIRE problematic directories for GEL compatibility
+# This aggressive approach removes ALL X11, SSL, cmake, and other problematic symlinks
+RUN echo "Removing entire problematic directories for GEL compatibility..." \
+    && rm -rf /opt/miniconda3/share \
+    && echo "Removed entire share directory" \
+    && rm -rf /opt/miniconda3/ssl \
+    && echo "Removed entire SSL directory" \
+    && find /opt/miniconda3/lib -name "*.so.*" -type l -delete 2>/dev/null || true \
+    && echo "Removed problematic .so symlinks" \
+    && find /opt/miniconda3 -name "*XErrorDB*" -delete 2>/dev/null || true \
+    && find /opt/miniconda3 -name "*.desktop" -delete 2>/dev/null || true \
+    && find /opt/miniconda3 -name "*Xcms*" -delete 2>/dev/null || true \
+    && find /opt/miniconda3 -name "*X11*" -delete 2>/dev/null || true \
+    && find /opt/miniconda3 -name "*libX*" -delete 2>/dev/null || true \
+    && find /opt/miniconda3 -name "*cacert*" -delete 2>/dev/null || true \
+    && echo "Aggressive cleanup completed - all problematic symlinks removed"
+
+# Additional comprehensive cleanup to reduce size and remove problematic files
+RUN apt-get autoremove -y \
+    && apt-get autoclean \
+    && rm -rf /var/lib/apt/lists/* \
+    && /opt/miniconda3/bin/conda clean -afy \
+    && rm -rf /opt/miniconda3/pkgs/* \
+    && find /tmp -maxdepth 1 -name "*.tar.gz" -delete 2>/dev/null || true \
+    && find /tmp -maxdepth 1 -name "*.deb" -delete 2>/dev/null || true \
+    && find /tmp -maxdepth 1 -name "*.sh" -delete 2>/dev/null || true
+
+# Verify critical installations
+RUN /opt/miniconda3/envs/r_env/bin/R --version \
+    && echo "Container build completed successfully"
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command (flexible for Nextflow)
+CMD [ "/opt/miniconda3/envs/r_env/bin/R", "--no-save" ]
+
+# BUILD COMMANDS:
+# docker build -f Dockerfile.r_clean -t damouzo/container_r_clean:latest .
+# docker push damouzo/container_r_clean:latest
+# GEL: singularity pull container_r_clean.sif docker://docker-remote.artifactory.aws.gel.ac/damouzo/container_r_clean:latest
