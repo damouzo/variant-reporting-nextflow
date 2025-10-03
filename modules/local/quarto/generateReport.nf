@@ -4,9 +4,6 @@ process generateReport {
     
     publishDir "${params.results_dir}/reports", mode: 'copy'
 
-    when:
-    params.enable_quarto_report
-
     input:
         tuple val(gene_name), val(report_type), path(template_file), path(input_files)
 
@@ -14,6 +11,9 @@ process generateReport {
         path "${gene_name}_${report_type}.html", emit: html_report
         path "${gene_name}_${report_type}_files/", emit: report_files, optional: true
         path "versions.yml", emit: versions
+
+    when:
+        params.enable_quarto_report
 
     script:
     def input_files_list = input_files instanceof List ? input_files.join(' ') : input_files
@@ -58,7 +58,7 @@ process generateReport {
     echo "Available data files:"
     ls -la data/
 
-    # Render HTML only (LaTeX removed from container to save ~3GB)
+    # Render HTML
     echo "Rendering HTML report (PDF generation disabled for container optimization)..."
     quarto render ${report_name}.qmd --to html
 
