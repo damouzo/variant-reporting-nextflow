@@ -95,7 +95,7 @@ ge_patients_with_bci_var <- lapply(ge_samples_with_bci_var, function(samples) {
 for (rs_id in names(ge_patients_with_bci_var)) {
   df <- ge_patients_with_bci_var[[rs_id]]
     write.table(df, 
-                file = paste0(gene_name, "_GEpatientMetadata_with_BCIvariants_", rs_id, ".csv"),
+                file = paste0(gene_name, "_GEpatientMetadata_BCIvariants_", rs_id, ".csv"),
                 sep = ",", row.names = FALSE, col.names = TRUE, quote = FALSE)
     
     df2 <- df %>% select(participant_id)

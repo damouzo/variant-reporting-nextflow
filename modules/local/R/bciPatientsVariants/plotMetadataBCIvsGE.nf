@@ -35,10 +35,10 @@ process plotMetadataBCIvsGE {
     echo "STUB MODE: Creating mock files for ${gene_name}"
 
     # Create a mock CSV file
-    echo "mock example when stub version" > ${gene_name}_mock_csv.csv
+    echo "mock example when stub version" > ${gene_name}_mockdata_GEpatientMetadata_BCIvariants_AllVariantsBCI.csv
 
     # Create a simple mock PDF
-    touch ${gene_name}_metadata_mockplot.pdf
+    touch ${gene_name}_mockdata_GEpatientMetadata_BCIvariants_AllVariantsBCI.pdf
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

@@ -156,11 +156,20 @@ workflow QC_BCI_PATIENTS_VARIANTS {
     // Prepare input files for the report
     report_files_ch = cleanFormatBciPatientsVar.out.clean_rds
         .join(compareBCIwithGEvar.out.BciVsGe_rds)
-        .join(metadata_csv_keyed)
+        .join(
+            metadata_csv_keyed
+                .groupTuple()  // Agrupa todos los CSVs por gene
+                .map { gene_name, csv_files -> tuple(gene_name, csv_files) }
+        )
         .join(qc_plots_keyed)
-        .join(metadata_plots_keyed)
-        .map { gene_name, clean_rds, comparison_rds, metadata_csv, qc_plots, metadata_plots ->
-            def input_files = [clean_rds, comparison_rds, metadata_csv, qc_plots, metadata_plots]
+        .join(
+            metadata_plots_keyed
+                .groupTuple()  // Agrupa todos los PDFs por gene
+                .map { gene_name, pdf_files -> tuple(gene_name, pdf_files) }
+        )
+        .map { gene_name, clean_rds, comparison_rds, metadata_csvs, qc_plots, metadata_plots ->
+            // Ahora metadata_plots es una lista con TODOS los PDFs
+            def input_files = [clean_rds, comparison_rds] + metadata_csvs + [qc_plots] + metadata_plots
             def report_type = "bci_patients_variants_report"
             tuple(gene_name, report_type, input_files)
         }
@@ -168,6 +177,7 @@ workflow QC_BCI_PATIENTS_VARIANTS {
         .map { gene_name, report_type, input_files, template ->
             tuple(gene_name, report_type, template, input_files) 
         }
+        
     
     // Generate the Quarto report
     generateReport(report_files_ch)
