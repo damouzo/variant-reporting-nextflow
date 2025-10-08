@@ -87,7 +87,7 @@ bci_valid <- which(!is.na(bci_chrs) & !is.na(bci_pos))
 
 if (length(bci_valid) > 0) {
   # Extract GE chromosomes and positions
-  ge_chrs <- as.character(ge_variant_table$CHROM_variant)
+  ge_chrs <- gsub("[^0-9]", "", as.character(ge_variant_table$CHROM_variant))
   ge_pos <- ge_variant_table$POS_variant
   
   for (i in bci_valid) {
@@ -118,7 +118,7 @@ if (nrow(all_matches) > 0) {
 # Create comparison table
 if (nrow(all_matches) > 0) {
   # Select columns of interest for BCI and GE
-  bci_selected <- bci_var_table[all_matches$bci_row, c("Variant", "Location", "Allele", "Existing_variation", "Patient_REF", "Patient_Centre_REF","CLIN_SIG")]
+  bci_selected <- bci_var_table[all_matches$bci_row, ]
   ge_selected <- ge_variant_table[all_matches$ge_row, c("ID_variant", "CHROM_variant", "POS_variant", "REF_variant", "ALT_variant", "Existing_variation_annotation", "IMPACT_annotation", "CLIN_SIG_annotation","Het_samples", "Hom_samples", "Hemi_samples")]
   
   # Combine tables
@@ -126,7 +126,7 @@ if (nrow(all_matches) > 0) {
                              match_type = all_matches$match_type)
   
   # Remove duplicate variants
-  compared_var <- compared_var_full[!duplicated(compared_var_full[c("Variant", "ID_variant")]), ]
+  compared_var <- compared_var_full[!duplicated(compared_var_full[c("Variant_Name", "ID_variant")]), ]
   rownames(compared_var) <- NULL # Reset row names
   
   cat(sprintf("Found %d unique matching variants between BCI and GE tables\n", nrow(compared_var)))
@@ -136,11 +136,11 @@ if (nrow(all_matches) > 0) {
   
   # Create empty comparison table with appropriate structure
   compared_var <- data.frame(
-    Variant = character(0),
+    Variant_Name = character(0),
     Location = character(0),
     Allele = character(0),
     Existing_variation = character(0),
-    Patient_REF = character(0),
+    Variant_REF = character(0),
     Patient_Centre_REF = character(0),
     CLIN_SIG = character(0),
     ID_variant = character(0),

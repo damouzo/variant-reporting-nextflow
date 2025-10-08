@@ -59,7 +59,7 @@ metadata_info <- readRDS(p_metadata_file)
 
 # Plots Functions ---------------------------------------------------------
 generate_barplot <- function(data, gene, variant_orig) {
-  pdf(paste0(gene, "_", variant_orig, "_Filtered_Frec_SVtype.pdf"), width = 10, height = 8)
+  pdf(paste0(gene, "_Filtered_", variant_orig, "_Frec_SVtype.pdf"), width = 10, height = 8)
   print(
     ggplot(data %>% count(INFO_SVTYPE), aes(x = INFO_SVTYPE, y = n)) +
       geom_col(fill = "#377EB8") +
@@ -76,7 +76,7 @@ generate_barplot <- function(data, gene, variant_orig) {
 }
 
 generate_circos_plot <- function(data, gene, variant_orig) {
-  pdf(paste0(gene, "_", variant_orig, "_Filtered_Circle_Translocation.pdf"), width = 8, height = 8)
+  pdf(paste0(gene, "_Filtered_", variant_orig, "_Circle_Translocation.pdf"), width = 8, height = 8)
   circos.clear()
   circos.initializeWithIdeogram(species = "hg38")
   title(paste0("Translocation of ", gene, " variants in ", variant_orig, " samples"))
@@ -93,7 +93,7 @@ generate_circos_plot <- function(data, gene, variant_orig) {
 }
 
 generate_cnv_plot <- function(data, gene, variant_orig) {
-  pdf(paste0(gene, "_", variant_orig, "_Filtered_CNV_Size_CN.pdf"), width = 10, height = 8)
+  pdf(paste0(gene, "_Filtered_", variant_orig, "_CNV_Size_CN.pdf"), width = 10, height = 8)
   print(
     ggplot(data, aes(x = log10(SV_size), y = CN_CNVonly, color = CN_status)) +
       geom_point(alpha = 0.7, size = 3) +
@@ -110,7 +110,7 @@ generate_cnv_plot <- function(data, gene, variant_orig) {
 }
 
 generate_inversion_plot <- function(data, gene, variant_orig) {
-  pdf(paste0(gene, "_", variant_orig, "_Filtered_Inversions_Segments.pdf"), width = 14, height = 10)
+  pdf(paste0(gene, "_Filtered_", variant_orig, "_Inversions_Segments.pdf"), width = 14, height = 10)
   
   # Get gene boundaries from exon info
   gene_start <- min(exon_info$ExonStart, na.rm = TRUE)
@@ -259,14 +259,8 @@ for (variant_orig in unique(variants_table$variant_origin)) {
 
 
 # Metadata Distribution Plots ------------------------------------------------
-# Get unique structural variant types
-sv_types <- unique(variants_table$INFO_SVTYPE)
-sv_types <- sv_types[!is.na(sv_types) & sv_types != ""]
-
-cat("Found structural variant types:", paste(sv_types, collapse = ", "), "\n")
-
 # Function to create metadata plots for a given dataset
-create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
+create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, variant_orig) {
   if (nrow(variant_data) == 0) {
     cat("No data available for", title_suffix, "\n")
     return(NULL)
@@ -469,7 +463,7 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
     }
     
     # Create PDF with all barplots on the same page using grid functions
-    pdf_file <- paste0(gene_name, "_QC_PartMetadata_Barplots_", filename_suffix, ".pdf")
+    pdf_file <- paste0(gene_name, "_Filtered_",variant_orig,"_PartMetadata_Barplots_", filename_suffix, ".pdf")
     pdf(pdf_file, width = 12, height = 16)
     
     # Create a single page with both grids
@@ -562,30 +556,46 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
   return(variant_metadata)
 }
 
-# Process each structural variant type separately
-for (sv_type in sv_types) {
-  cat("\n--- Processing", sv_type, "variants ---\n")
-  
-  # Filter variants for this specific type
-  sv_type_variants <- variants_table %>% 
-    filter(INFO_SVTYPE == sv_type)
-  
-  # Create metadata plots for this SV type
+for (variant_orig in unique(variants_table$variant_origin)) {
+  # Subset the data for variant origin
+  variants_table_VarOrg <- variants_table[variants_table$variant_origin == variant_orig, ]
+  if (nrow(variants_table_VarOrg) == 0) {
+    cat("No data available for variant origin:", variant_orig, "\n")
+    next
+  }
+
+  # Get unique structural variant types
+  sv_types <- unique(variants_table_VarOrg$INFO_SVTYPE)
+  sv_types <- sv_types[!is.na(sv_types) & sv_types != ""]
+
+  cat("Found structural variant types:", paste(sv_types, collapse = ", "), "\n")
+
+  # Process each structural variant type separately
+  for (sv_type in sv_types) {
+    cat("\n--- Processing", sv_type, "variants ---\n")
+    
+    # Filter variants for this specific type
+    sv_type_variants <- variants_table_VarOrg %>% 
+      filter(INFO_SVTYPE == sv_type)
+    
+    # Create metadata plots for this SV type
+    create_metadata_plots(
+      variant_data = sv_type_variants,
+      title_suffix = sv_type,
+      filename_suffix = sv_type,
+      variant_orig = variant_orig
+    )
+  }
+
+  # Create combined analysis for all structural variants
+  cat("\n--- Processing All Structural Variants ---\n")
   create_metadata_plots(
-    variant_data = sv_type_variants,
-    title_suffix = sv_type,
-    filename_suffix = sv_type
+    variant_data = variants_table_VarOrg,
+    title_suffix = "All Structural",
+    filename_suffix = "AllStructuralVar",
+    variant_orig = variant_orig
   )
 }
-
-# Create combined analysis for all structural variants
-cat("\n--- Processing All Structural Variants ---\n")
-create_metadata_plots(
-  variant_data = variants_table,
-  title_suffix = "All Structural",
-  filename_suffix = "AllStructuralVar"
-)
-
 
 cat("Plots generated successfully for gene:", gene_name, "\n")
 

@@ -43,8 +43,10 @@ variant_table <- variant_table %>%
 # Join vep annotations with patient data ---------------------------------------
 annot_var_table <- variant_table %>%
   left_join(vep_table, by = "Uploaded_variation") %>%
-  rename(Variant = Uploaded_variation) %>%
-  distinct()
+  rename(Variant_VEP = Uploaded_variation) %>%
+  mutate(Variant_Name = ifelse(is.na(Existing_variation), Variant_VEP, Existing_variation)) %>%
+  distinct() %>%
+  select(Variant_Name, everything())
 
 # Clean output table ---------------------------------------------------------------
 annot_var_table <- annot_var_table %>%

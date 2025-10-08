@@ -8,7 +8,7 @@ if (length(args) < 2) {
 }
 
 gene_name <- args[1]  # "DHX34"
-input_files <- args[-1]  # c("/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/raw_data/BCI_patients/250926_DHX34_jd_patients_var_data.tsv", "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/raw_data/BCI_patients/250926_DHX34_pv_patients_var_data.tsv")
+input_files <- args[-1]  # c("/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/raw_data/BCI_patients/250926_DHX34_bci_patients_var_data.tsv", "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/raw_data/BCI_patients/250926_DHX34_pv_patients_var_data.tsv")
 
 # Libraries  -------------------------------------------------------------------
 library(tidyverse)
@@ -21,7 +21,7 @@ set.seed(23)
 detect_center <- function(filename) {
   filename_lower <- str_to_lower(basename(filename))
   if (str_detect(filename_lower, "_pv_")) return("PV")
-  if (str_detect(filename_lower, "_jd_")) return("JD") 
+  if (str_detect(filename_lower, "_bci_")) return("BCI") 
   if (str_detect(filename_lower, "_kc_")) return("KC")
   
   # If no pattern matches, try to infer from content later
@@ -33,11 +33,11 @@ detect_center <- function(filename) {
 normalize_columns <- function(df, center, filename) {
     # Create a copy to work with
     normalized_df <- df
-    column_selected <- c("Patient_REF", "Patient_Centre_REF", "Gene_id", "Transcript", "cDNA_Change_HGVS_c", "Protein_Change_HGVS_p", "Center")
+    column_selected <- c("Variant_REF", "Patient_Centre_REF", "Gene_id", "Transcript", "cDNA_Change_HGVS_c", "Protein_Change_HGVS_p", "Center")
     
     # Center-specific column mapping based on actual data structures
-    if (center == "JD") {
-        cat("\nApplying JD center column mapping...\n")
+    if (center == "BCI") {
+        cat("\nApplying BCI center column mapping...\n")
         normalized_df <- df %>%
             mutate(
                 Patient_Centre_REF = `FAMILY`,
@@ -46,9 +46,9 @@ normalize_columns <- function(df, center, filename) {
                 cDNA_Change_HGVS_c = `VARIANT`,
                 Protein_Change_HGVS_p = str_extract(cDNA_Change_HGVS_c, "p\\.\\([^)]+\\)"),
                 cDNA_Change_HGVS_c = str_extract(cDNA_Change_HGVS_c, "c\\.[^:]+"),
-                Center = "JD"
+                Center = "BCI"
             ) %>%
-            mutate(Patient_REF = paste0("J", row_number())) %>%
+            mutate(Variant_REF = paste0("B", row_number())) %>%
             select(all_of(column_selected))
         
     } else if (center == "PV") {
@@ -63,7 +63,7 @@ normalize_columns <- function(df, center, filename) {
                 Alternative_Allele = str_extract(cDNA_Change_HGVS_c, "(?<=>)[A-Z]"),
                 Center = "PV"
             ) %>%
-            mutate(Patient_REF = paste0("P", row_number())) %>%
+            mutate(Variant_REF = paste0("P", row_number())) %>%
             select(all_of(column_selected))
         
     } else if (center == "KC") {
@@ -80,7 +80,7 @@ normalize_columns <- function(df, center, filename) {
                 Alternative_Allele = str_extract(cDNA_Change_HGVS_c, "(?<=>)[A-Z]"),
                 Center = "KC"
             ) %>%
-            mutate(Patient_REF = paste0("K", row_number())) %>%
+            mutate(Variant_REF = paste0("K", row_number())) %>%
             select(all_of(column_selected))
     } 
     return(normalized_df)
@@ -117,7 +117,7 @@ vep_input_data <- combined_data %>%
     filter(!is.na(cDNA_Change_HGVS_c) & !is.na(Transcript)) %>%
     filter(cDNA_Change_HGVS_c != "NA" & Transcript != "NA") %>%
     mutate(
-        variant_id = paste(Patient_REF, row_number(), sep="_"), # Create unique identifier
+        variant_id = paste(Variant_REF, row_number(), sep="_"), # Create unique identifier
         transcript_clean = str_remove(Transcript, "\\..*"), # Clean transcript (remove version if exists)
         vep_input_line = paste0(transcript_clean, ":", cDNA_Change_HGVS_c) # Format for VEP: transcript:hgvs_c
     ) %>%

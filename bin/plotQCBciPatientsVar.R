@@ -2029,7 +2029,7 @@ df_data <- variants_table %>%
   filter(!is.na(Protein_position)) %>%
   mutate(Protein_pos_start = as.numeric(str_extract(Protein_position, "\\d+"))) %>%
   mutate(Exon_pos_start = as.numeric(str_extract(gsub(".*:","",Location), "\\d+"))) %>%
-  mutate(LabelVarPlot = ifelse(grepl("^(rs|COSV)", Existing_variation, ignore.case = TRUE), Existing_variation, Variant))
+  mutate(LabelVarPlot = as.character(Variant_Name))
   
 subset_label <- "Canonical"
 
@@ -2056,7 +2056,7 @@ prot.gr <- GRanges(seqnames = paste0(unique(seqnames(features_prot))),
                                     names = df_data$LabelVarPlot))
 
 # Prepare variant properties
-prot.gr$node.label <- as.character(df_data$Patient_REF)
+prot.gr$node.label <- as.character(df_data$Variant_REF)
 prot.gr$node.label <- as.character(prot.gr$node.label)
 prot.gr$node.label.cex <- 0.5
 prot.gr$Consequence <- df_data$Consequence            
@@ -2084,7 +2084,7 @@ exon.gr <- GRanges(seqnames = paste0(unique(seqnames(features_exon))),
                    ranges = IRanges(start = as.numeric(df_data$Exon_pos_start), width = 1, 
                                     names = df_data$LabelVarPlot))
 
-exon.gr$node.label <- as.character(df_data$Patient_REF)
+exon.gr$node.label <- as.character(df_data$Variant_REF)
 exon.gr$node.label <- as.character(exon.gr$node.label)
 exon.gr$node.label.cex <- 0.5
 exon.gr$Consequence <- df_data$Consequence            

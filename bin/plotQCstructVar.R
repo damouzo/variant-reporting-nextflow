@@ -46,7 +46,7 @@ metadata_info <- readRDS(part_metadata_file)
 
 # Plots Functions ---------------------------------------------------------
 generate_barplot <- function(data, gene, variant_orig) {
-  pdf(paste0(gene, "_", variant_orig, "_QC_Frec_SVtype.pdf"), width = 10, height = 8)
+  pdf(paste0(gene, "_QC_", variant_orig, "_Frec_SVtype.pdf"), width = 10, height = 8)
   print(
     ggplot(data %>% count(INFO_SVTYPE), aes(x = INFO_SVTYPE, y = n)) +
       geom_col(fill = "#377EB8") +
@@ -63,7 +63,7 @@ generate_barplot <- function(data, gene, variant_orig) {
 }
 
 generate_circos_plot <- function(data, gene, variant_orig) {
-  pdf(paste0(gene, "_", variant_orig, "_QC_Circle_Translocation.pdf"), width = 8, height = 8)
+  pdf(paste0(gene, "_QC_", variant_orig, "_Circle_Translocation.pdf"), width = 8, height = 8)
   circos.clear()
   circos.initializeWithIdeogram(species = "hg38")
   title(paste0("Translocation of ", gene, " variants in ", variant_orig, " samples"))
@@ -80,7 +80,7 @@ generate_circos_plot <- function(data, gene, variant_orig) {
 }
 
 generate_cnv_plot <- function(data, gene, variant_orig) {
-  pdf(paste0(gene, "_", variant_orig, "_QC_CNV_Size_CN.pdf"), width = 10, height = 8)
+  pdf(paste0(gene, "_QC_", variant_orig, "_CNV_Size_CN.pdf"), width = 10, height = 8)
   print(
     ggplot(data, aes(x = log10(SV_size), y = CN_CNVonly, color = CN_status)) +
       geom_point(alpha = 0.7, size = 3) +
@@ -97,7 +97,7 @@ generate_cnv_plot <- function(data, gene, variant_orig) {
 }
 
 generate_inversion_plot <- function(data, gene, variant_orig) {
-  pdf(paste0(gene, "_", variant_orig, "_QC_Inversions_Segments.pdf"), width = 14, height = 10)
+  pdf(paste0(gene, "_QC_", variant_orig, "_Inversions_Segments.pdf"), width = 14, height = 10)
   
   plot_data <- data %>%
     mutate(start_pos = as.numeric(POS), end_pos = as.numeric(INFO_END), quality = as.numeric(QUAL_SVonly), 

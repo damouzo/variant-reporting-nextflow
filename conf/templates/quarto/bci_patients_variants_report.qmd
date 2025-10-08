@@ -55,7 +55,7 @@ project_info <- list(
 # Executive Summary
 
 This comprehensive **HTML report** presents a detailed quality control analysis of germline variants identified in the **{{GENE_NAME}}** 
-gene as part of the **{{PROJECT_CODE}}** research initiative. The analysis integrates patient-derived variant data from participants from Kings College (KC), Pavia (PV), and the Jiménez Díaz (JD) Foundation Hospital
+gene as part of the **{{PROJECT_CODE}}** research initiative. The analysis integrates patient-derived variant data from participants from Kings College (KC), Pavia (PV), and the Barts Cancer Institute (BCI)
 with population-level reference data from Genomics England (GE), providing crucial insights into variant pathogenicity, population frequency, and clinical significance.
 
 Key components of this report include:
@@ -70,7 +70,7 @@ Key components of this report include:
 
 ## 1. Patient Variants Overview
 
-This section presents all germline variants identified in KC, PV, and JD patients, annotated using the Variant Effect Predictor (VEP). 
+This section presents all germline variants identified in KC, PV, and BCI patients, annotated using the Variant Effect Predictor (VEP). 
 Each variant is characterized by its genomic location, consequence type, predicted functional impact, and pathogenicity (ClinVar, SIFT, PolyPhen). 
 The interactive table allows for detailed exploration and filtering of variants based on multiple criteria.
 
@@ -95,7 +95,7 @@ if (length(rds_files) > 0) {
   if (!is.null(variants_data) && nrow(variants_data) > 0) {
     # Select key columns for display
     display_cols <- c(
-      "Patient_REF", "Patient_Centre_REF","Center" ,"Gene_id", "Transcript",
+      "Variant_REF", "Patient_Centre_REF","Center" ,"Gene_id", "Transcript",
       "cDNA_Change_HGVS_c", "Protein_Change_HGVS_p", "Location", 
       "Allele", "Consequence", "CANONICAL", "IMPACT", "SYMBOL", "Existing_variation",
       "SIFT", "PolyPhen", "EXON", "AF", "CLIN_SIG"
@@ -138,7 +138,7 @@ if (length(rds_files) > 0) {
 }
 ```
 
-**_Table 1:_** *Interactive table summarizing germline variants identified in KC, PV, and JD patients. 
+**_Table 1:_** *Interactive table summarizing germline variants identified in KC, PV, and BCI patients. 
 The table includes genomic and protein-level changes (HGVS nomenclature), functional consequences (HIGH, MODERATE, LOW, or MODIFIER), 
 pathogenicity predictions (SIFT and PolyPhen scores), and clinical annotations (ClinVar significance). 
 Users can filter and explore the data interactively.*
@@ -265,11 +265,11 @@ if (length(comparison_files) > 0) {
         # Return empty tibble with expected structure
         tibble(
           Gene = character(),
-          Variant = character(),
+          Variant_Name = character(),
           Location = character(),
           Allele = character(),
           Existing_variation = character(),
-          Patient_REF = character(),
+          Variant_REF = character(),
           ID_variant = character(),
           CHROM_variant = character(),
           POS_variant = numeric(),
@@ -299,7 +299,7 @@ if (length(comparison_files) > 0) {
     
     # Select columns for display (exclude Het_samples, Hom_samples, Hemi_samples)
     display_cols <- c(
-      "Gene", "Patient_REF", "Variant", "Location", "Allele",
+      "Gene", "Variant_REF", "Variant", "Location", "Allele",
       "IMPACT_annotation", "match_type", "Het_samples_num", "Hom_samples_num", "Hemi_samples_num",
       "Existing_variation", "ID_variant", "CHROM_variant", "POS_variant",
       "REF_variant", "ALT_variant"
@@ -342,8 +342,8 @@ if (length(comparison_files) > 0) {
       # Show empty table structure
       tibble(
         Gene = character(),
-        Patient_REF = character(),
-        Variant = character(),
+        Variant_REF = character(),
+        Variant_Name = character(),
         Location = character(),
         Allele = character(),
         IMPACT_annotation = character(),

@@ -57,11 +57,10 @@ bci_clean_data <- readRDS(bci_clean_file)
 metadata <- readRDS(metadata_file)
 
 
-
 # GE samples with BCI variants --------------------------------------------------
 ge_samples_with_bci_var <- comparison_data %>% 
-  select(Existing_variation_annotation, Het_samples, Hom_samples, Hemi_samples) %>% 
-  mutate(rs_id = str_extract(Existing_variation_annotation, "rs[0-9]+")) %>%
+  select(Variant_Name, Het_samples, Hom_samples, Hemi_samples) %>% 
+  mutate(rs_id = str_extract(Variant_Name, "^[^,]+")) %>%
   filter(!is.na(rs_id)) %>%
   mutate(across(c(Het_samples, Hom_samples, Hemi_samples), ~na_if(., "NA"))) %>%
   rowwise() %>%
