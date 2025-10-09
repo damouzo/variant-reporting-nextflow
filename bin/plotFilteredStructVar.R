@@ -207,6 +207,39 @@ generate_inversion_plot <- function(data, gene, variant_orig, filter_type) {
 }
 
 
+# Check if we have any data at all -----------------------------------------------
+if (nrow(variants_table) == 0) {
+  cat("WARNING: No structural variants remain after filtering. Generating placeholder PDF.\n")
+  
+  # Generate a placeholder PDF to satisfy Nextflow output requirements
+  placeholder_file <- paste0(gene_name, "_", filter_type, "_NoData_placeholder.pdf")
+  pdf(placeholder_file, width = 8, height = 6)
+  plot(1, 1, type = "n", xlab = "", ylab = "", main = paste0(gene_name, " - ", filter_type, "\nNo Structural Variants After Filtering"), 
+       axes = FALSE, frame.plot = TRUE)
+  text(1, 1, "No structural variants available\nafter applying filters", cex = 1.5, col = "red")
+  text(1, 0.8, paste("Gene:", gene_name), cex = 1.2)
+  text(1, 0.7, paste("Filter:", filter_type), cex = 1.2)
+  text(1, 0.5, "This is normal if your custom filter\nis very restrictive", cex = 1, col = "darkblue")
+  dev.off()
+  
+  cat("Generated placeholder PDF:", placeholder_file, "\n")
+  
+  # Skip to the end - no need to try other plots
+  cat("=================================================\n")
+  cat("STRUCTURAL VARIANT PLOT GENERATION COMPLETED\n")
+  cat("Gene:", gene_name, "\n")
+  cat("Filter type:", filter_type, "\n")
+  cat("Placeholder plot generated (no data available)!\n")
+  cat("=================================================\n")
+  
+  # Exit the script successfully
+  quit(save = "no", status = 0)
+}
+
+# Count how many plots we expect to generate for tracking
+expected_plots <- 0
+generated_plots <- 0
+
 # Plots Generation -------------------------------------------------------------------
 for (variant_orig in unique(variants_table$variant_origin)) {
   # Subset the data for variant origin
@@ -603,11 +636,31 @@ for (variant_orig in unique(variants_table$variant_origin)) {
   )
 }
 
+# Final check: ensure at least one PDF was generated -------------------------
+pdf_files <- list.files(pattern = "*.pdf")
+if (length(pdf_files) == 0) {
+  cat("WARNING: No PDF files were generated during plotting. Creating emergency placeholder.\n")
+  
+  # Generate emergency placeholder PDF
+  emergency_file <- paste0(gene_name, "_", filter_type, "_EmergencyPlaceholder.pdf")
+  pdf(emergency_file, width = 8, height = 6)
+  plot(1, 1, type = "n", xlab = "", ylab = "", main = paste0(gene_name, " - ", filter_type, "\nNo Plots Generated"), 
+       axes = FALSE, frame.plot = TRUE)
+  text(1, 1, "No plots could be generated\nwith available data", cex = 1.5, col = "red")
+  text(1, 0.8, paste("Gene:", gene_name), cex = 1.2)
+  text(1, 0.7, paste("Filter:", filter_type), cex = 1.2)
+  text(1, 0.5, "Check if filtering is too restrictive\nor data quality issues", cex = 1, col = "darkblue")
+  dev.off()
+  
+  cat("Generated emergency placeholder PDF:", emergency_file, "\n")
+}
+
 cat("=================================================\n")
 cat("STRUCTURAL VARIANT PLOT GENERATION COMPLETED\n")
 cat("Gene:", gene_name, "\n")
 cat("Filter type:", filter_type, "\n")
-cat("All plots generated successfully!\n")
+cat("All available plots generated successfully!\n")
+cat("PDF files created:", length(list.files(pattern = "*.pdf")), "\n")
 cat("=================================================\n")
 
 

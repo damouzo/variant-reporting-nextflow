@@ -212,35 +212,32 @@ filter_variants_by_participants <- function(variant_df, metadata_df, kept_partic
   return(variant_df_filtered)
 }
 
-# Apply custom filters first ---------------------------------------------------
-# Apply custom filters before standard filtering if this is not the basic filter
-if (filter_type != "filter_basic") {
-  variant_table <- apply_custom_filters(variant_table, participant_metadata, custom_filter_args)
-  cat("After custom filtering: ", nrow(variant_table), " variants remain\n")
-}
+# Apply STANDARD filtering FIRST (for all filter types) -----------------------
+# This ensures all filter types start from the same high-quality baseline
+cat("\n=== APPLYING STANDARD FILTERING (ALL FILTER TYPES) ===\n")
 
-# Filter for canonical variants -------------------------------------------------
-# Stats of variant filtering
-filter_prefix <- ifelse(filter_type == "filter_basic", "", paste0(filter_type, "_"))
+# Stats of variant filtering - all filter types use same baseline for standard steps
 stats_variants_filter <- data.frame(metric = character(), variant_count = numeric(), 
                                     participant_count = numeric(), stringsAsFactors = FALSE
 )
 
-# Initial count (after custom filtering if applied)
-initial_metric <- ifelse(filter_type == "filter_basic", "total_raw_variants", paste0(filter_type, "_total_raw_variants"))
+# Initial raw count - same for all filter types for comparability
 stats_variants_filter <- rbind(stats_variants_filter, 
-                              data.frame(metric = initial_metric, variant_count = nrow(variant_table),
+                              data.frame(metric = "total_raw_variants", variant_count = nrow(variant_table),
                                 participant_count = count_unique_participants(variant_table, participant_metadata)
                               ))
+
+cat("Starting with", nrow(variant_table), "raw variants\n")
 
 # Filter for canonical variants
 variant_filtered_table <- variant_table %>%
   filter(CANONICAL_annotation == "YES")
 
-# Add canonical variants count to stats
-canonical_metric <- paste0(filter_prefix, "total_canonical_variants")
+cat("After canonical filtering:", nrow(variant_filtered_table), "variants remain\n")
+
+# Add canonical variants count to stats - same for all filter types
 stats_variants_filter <- rbind(stats_variants_filter, 
-                              data.frame(metric = canonical_metric, 
+                              data.frame(metric = "total_canonical_variants", 
                                       variant_count = nrow(variant_filtered_table),
                                       participant_count = count_unique_participants(variant_filtered_table, participant_metadata)
                               ))
@@ -268,11 +265,11 @@ categorize_clinvar <- function(annotation) {
 # Apply categorization
 variant_filtered_table$clinvar_category <- sapply(variant_filtered_table$CLIN_SIG_annotation, categorize_clinvar)
 
-# Count each category and add to stats
+# Count each category and add to stats - same for all filter types
 clinvar_counts <- table(variant_filtered_table$clinvar_category)
 for (category in names(clinvar_counts)) {
   category_variants <- variant_filtered_table[variant_filtered_table$clinvar_category == category, ]
-  category_metric <- paste0(filter_prefix, "total_canonical_", category)
+  category_metric <- paste0("total_canonical_", category)
   stats_variants_filter <- rbind(stats_variants_filter, 
                                 data.frame(metric = category_metric, 
                                            variant_count = as.numeric(clinvar_counts[category]),
@@ -282,10 +279,11 @@ for (category in names(clinvar_counts)) {
 # Filter out benign variants
 variant_filtered_table <- variant_filtered_table[variant_filtered_table$clinvar_category != "benign", ]
 
-# Add count after benign filtering
-nonbenign_metric <- paste0(filter_prefix, "total_canonical_nonBenign")
+cat("After removing benign variants:", nrow(variant_filtered_table), "variants remain\n")
+
+# Add count after benign filtering - same for all filter types
 stats_variants_filter <- rbind(stats_variants_filter, 
-                              data.frame(metric = nonbenign_metric, 
+                              data.frame(metric = "total_canonical_nonBenign", 
                                          variant_count = nrow(variant_filtered_table),
                                          participant_count = count_unique_participants(variant_filtered_table, participant_metadata)
                               ))
@@ -296,14 +294,39 @@ stats_variants_filter <- rbind(stats_variants_filter,
 variant_filtered_table <- variant_filtered_table %>%
   filter(!is.na(MAX_AF_annotation) & (MAX_AF_annotation == "-" | as.numeric(MAX_AF_annotation) < 0.001))
 
+cat("After MAF filtering:", nrow(variant_filtered_table), "high-quality variants remain\n")
 
-# Add count after MAX_AF filtering
-final_metric <- paste0(filter_prefix, "total_canonical_nonBenign_MAF<0.001")
+# Add count after MAX_AF filtering - same for all filter types (this is the high-quality baseline)
 stats_variants_filter <- rbind(stats_variants_filter, 
-                              data.frame(metric = final_metric, 
+                              data.frame(metric = "total_canonical_nonBenign_MAF<0.001", 
                                          variant_count = nrow(variant_filtered_table),
                                          participant_count = count_unique_participants(variant_filtered_table, participant_metadata)
                               ))
+
+# Store high-quality variants for custom filtering
+high_quality_variants <- variant_filtered_table
+
+# Apply CUSTOM filtering AFTER standard filtering (if not basic filter) -------
+if (filter_type != "filter_basic") {
+  cat("\n=== APPLYING CUSTOM FILTERING FOR", filter_type, "===\n")
+  
+  # Apply custom filters to the high-quality variants
+  variant_filtered_table <- apply_custom_filters(high_quality_variants, participant_metadata, custom_filter_args)
+  
+  cat("After custom filtering:", nrow(variant_filtered_table), "variants remain\n")
+  
+  # Add custom filter metric with specific prefix
+  custom_metric <- paste0(filter_type, "_after_custom_filtering")
+  stats_variants_filter <- rbind(stats_variants_filter, 
+                                data.frame(metric = custom_metric, 
+                                           variant_count = nrow(variant_filtered_table),
+                                           participant_count = count_unique_participants(variant_filtered_table, participant_metadata)
+                                ))
+} else {
+  cat("\n=== BASIC FILTERING - No custom filters applied ===\n")
+  # For basic filter, the final result is the high-quality variants
+  variant_filtered_table <- high_quality_variants
+}
 
 
 # Print summary ----------------------------------------------------------------

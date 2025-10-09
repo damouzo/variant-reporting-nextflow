@@ -203,31 +203,30 @@ filter_struct_variants_by_participants <- function(variant_df, metadata_df, kept
 }
 
 
-# Apply custom filters first ---------------------------------------------------
-# Apply custom filters before standard filtering if this is not the basic filter
-if (filter_type != "filter_basic") {
-  variant_table <- apply_custom_filters(variant_table, participant_metadata, custom_filter_args)
-  cat("After custom filtering: ", nrow(variant_table), " structural variants remain\n")
-}
+# Apply STANDARD filtering FIRST (for all filter types) -----------------------
+# This ensures all filter types start from the same high-quality baseline
+cat("\n=== APPLYING STANDARD FILTERING FOR STRUCTURAL VARIANTS (ALL FILTER TYPES) ===\n")
 
-# Filter for PASS variants and majority gene symbol ----------------------------
-# Stats of variant filtering
-filter_prefix <- ifelse(filter_type == "filter_basic", "", paste0(filter_type, "_"))
+# Stats of variant filtering - all filter types use same baseline for standard steps
 stats_variants_filter <- data.frame(metric = character(), variant_count = numeric(), 
                                     participant_count = numeric(), stringsAsFactors = FALSE)
 
-# Initial count (after custom filtering if applied)
-initial_metric <- ifelse(filter_type == "filter_basic", "total_raw_variants", paste0(filter_type, "_total_raw_variants"))
+# Initial raw count - same for all filter types for comparability
 stats_variants_filter <- rbind(stats_variants_filter, 
-                              data.frame(metric = initial_metric, variant_count = nrow(variant_table),
-                                participant_count = count_unique_participants(variant_table, participant_metadata)))
+                              data.frame(metric = "total_raw_variants", variant_count = nrow(variant_table),
+                                participant_count = count_unique_participants(variant_table, participant_metadata)
+                              ))
+
+cat("Starting with", nrow(variant_table), "raw structural variants\n")
 
 # Filter for PASS variants
 variant_filtered_table <- variant_table[variant_table$FILTER == "PASS", ]
 
-pass_metric <- paste0(filter_prefix, "total_filter_PASS_variants")
+cat("After PASS filtering:", nrow(variant_filtered_table), "variants remain\n")
+
+# Add PASS variants count to stats - same for all filter types
 stats_variants_filter <- rbind(stats_variants_filter, 
-                              data.frame(metric = pass_metric, 
+                              data.frame(metric = "total_filter_PASS_variants", 
                                       variant_count = nrow(variant_filtered_table),
                                       participant_count = count_unique_participants(variant_filtered_table, participant_metadata)))
 
@@ -237,9 +236,10 @@ if ("QUAL_SVonly" %in% colnames(variant_filtered_table)) {
   variant_filtered_table <- variant_filtered_table[is.na(variant_filtered_table$QUAL_SVonly) | 
                                                    variant_filtered_table$QUAL_SVonly >= 250, ]
   
-  qual_metric <- paste0(filter_prefix, "total_PASS_QUAL250_variants")
+  cat("After QUAL>=250 filtering:", nrow(variant_filtered_table), "variants remain\n")
+  
   stats_variants_filter <- rbind(stats_variants_filter, 
-                                data.frame(metric = qual_metric, 
+                                data.frame(metric = "total_PASS_QUAL250_variants", 
                                            variant_count = nrow(variant_filtered_table),
                                            participant_count = count_unique_participants(variant_filtered_table, participant_metadata)))
 }
@@ -253,9 +253,10 @@ if ("SYMBOL_annotation" %in% colnames(variant_filtered_table)) {
   # Filter to keep only majority symbol
   variant_filtered_table <- variant_filtered_table[variant_filtered_table$SYMBOL_annotation == majority_symbol, ]
   
-  symbol_metric <- paste0(filter_prefix, "total_PASS_", majority_symbol)
+  cat("After majority symbol filtering (", majority_symbol, "):", nrow(variant_filtered_table), "variants remain\n")
+  
   stats_variants_filter <- rbind(stats_variants_filter, 
-                                data.frame(metric = symbol_metric, 
+                                data.frame(metric = paste0("total_PASS_", majority_symbol), 
                                            variant_count = nrow(variant_filtered_table),
                                            participant_count = count_unique_participants(variant_filtered_table, participant_metadata)))
 }
@@ -266,27 +267,26 @@ if ("SYMBOL_annotation" %in% colnames(variant_filtered_table)) {
 germline_variants <- variant_filtered_table[variant_filtered_table$variant_origin == "germline", ]
 somatic_variants <- variant_filtered_table[variant_filtered_table$variant_origin == "somatic", ]
 
-# Add overall germline/somatic counts
-germline_metric <- paste0(filter_prefix, "total_germline_variants")
-somatic_metric <- paste0(filter_prefix, "total_somatic_variants")
+# Add overall germline/somatic counts - same for all filter types
 stats_variants_filter <- rbind(stats_variants_filter, 
-                              data.frame(metric = germline_metric, 
+                              data.frame(metric = "total_germline_variants", 
                                          variant_count = nrow(germline_variants),
                                          participant_count = count_unique_participants(germline_variants, participant_metadata)))
 
 stats_variants_filter <- rbind(stats_variants_filter, 
-                              data.frame(metric = somatic_metric, 
+                              data.frame(metric = "total_somatic_variants", 
                                          variant_count = nrow(somatic_variants),
                                          participant_count = count_unique_participants(somatic_variants, participant_metadata)))
+
+cat("High-quality structural variants:", nrow(germline_variants), "germline,", nrow(somatic_variants), "somatic\n")
 
 # Count by SVTYPE for germline variants
 if (nrow(germline_variants) > 0) {
   germline_svtype_counts <- table(germline_variants$INFO_SVTYPE)
   for (svtype in names(germline_svtype_counts)) {
     svtype_variants <- germline_variants[germline_variants$INFO_SVTYPE == svtype, ]
-    svtype_metric <- paste0(filter_prefix, "germline_", svtype)
     stats_variants_filter <- rbind(stats_variants_filter, 
-                                  data.frame(metric = svtype_metric, 
+                                  data.frame(metric = paste0("germline_", svtype), 
                                              variant_count = as.numeric(germline_svtype_counts[svtype]),
                                              participant_count = count_unique_participants(svtype_variants, participant_metadata)))
   }
@@ -297,12 +297,36 @@ if (nrow(somatic_variants) > 0) {
   somatic_svtype_counts <- table(somatic_variants$INFO_SVTYPE)
   for (svtype in names(somatic_svtype_counts)) {
     svtype_variants <- somatic_variants[somatic_variants$INFO_SVTYPE == svtype, ]
-    svtype_metric <- paste0(filter_prefix, "somatic_", svtype)
     stats_variants_filter <- rbind(stats_variants_filter, 
-                                  data.frame(metric = svtype_metric, 
+                                  data.frame(metric = paste0("somatic_", svtype), 
                                              variant_count = as.numeric(somatic_svtype_counts[svtype]),
                                              participant_count = count_unique_participants(svtype_variants, participant_metadata)))
   }
+}
+
+# Store high-quality variants for custom filtering
+high_quality_variants <- variant_filtered_table
+
+# Apply CUSTOM filtering AFTER standard filtering (if not basic filter) -------
+if (filter_type != "filter_basic") {
+  cat("\n=== APPLYING CUSTOM FILTERING FOR STRUCTURAL VARIANTS", filter_type, "===\n")
+  
+  # Apply custom filters to the high-quality variants
+  variant_filtered_table <- apply_custom_filters(high_quality_variants, participant_metadata, custom_filter_args)
+  
+  cat("After custom filtering:", nrow(variant_filtered_table), "structural variants remain\n")
+  
+  # Add custom filter metric with specific prefix
+  custom_metric <- paste0(filter_type, "_after_custom_filtering")
+  stats_variants_filter <- rbind(stats_variants_filter, 
+                                data.frame(metric = custom_metric, 
+                                           variant_count = nrow(variant_filtered_table),
+                                           participant_count = count_unique_participants(variant_filtered_table, participant_metadata)
+                                ))
+} else {
+  cat("\n=== BASIC FILTERING - No custom filters applied ===\n")
+  # For basic filter, the final result is the high-quality variants
+  variant_filtered_table <- high_quality_variants
 }
 
 
