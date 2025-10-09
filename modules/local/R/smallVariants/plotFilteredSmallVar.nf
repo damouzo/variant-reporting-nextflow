@@ -1,14 +1,14 @@
 // Nextflow script to call the R script for plotting filtered small variants
 
 process plotFilteredSmallVar {
-    tag { gene_name }
+    tag { "${gene_name}_${filter_type}" }
     label 'r_process'
 
-    // Publicar todos los PDFs generados en subcarpeta organizada por gen
-    publishDir "${params.results_dir}/${gene_name}/plots/small_variants", mode: 'copy'
+    // Publicar todos los PDFs generados en subcarpeta organizada por gen y filtro
+    publishDir "${params.results_dir}/${gene_name}${filter_type == 'filter_basic' && !params.custom_filters?.containsKey(gene_name) ? '/plots' : '/' + filter_type + '/plots'}", mode: 'copy'
 
     input:
-    tuple val(gene_name), path(filtered_table), path(prot_file), path(exon_file), path(part_metadata_file)
+    tuple val(gene_name), val(filter_type), path(filtered_table), path(prot_file), path(exon_file), path(part_metadata_file)
 
     // Save all PDFs generated
     output:
@@ -17,8 +17,8 @@ process plotFilteredSmallVar {
 
     script:
     """
-    echo "Plotting filtered variants for gene: ${gene_name}"
-    plotFilteredSmallVar.R ${filtered_table} ${gene_name} ${prot_file} ${exon_file} ${part_metadata_file}
+    echo "Plotting filtered variants for gene: ${gene_name} with filter type: ${filter_type}"
+    plotFilteredSmallVar.R ${filtered_table} ${gene_name} ${prot_file} ${exon_file} ${part_metadata_file} ${filter_type}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

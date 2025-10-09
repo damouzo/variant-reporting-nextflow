@@ -1,24 +1,27 @@
 // Nextflow process to call the R script for filtering structural variants
 
 process filterStructVar {
-    tag { gene_name }
+    tag { "${gene_name}_${filter_type}" }
     label 'r_process'
     
-    publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
+    publishDir "${params.results_dir}/${gene_name}${filter_type == 'filter_basic' && !params.custom_filters?.containsKey(gene_name) ? '' : '/' + filter_type}", mode: 'copy'
 
     input:
-        tuple val(gene_name), path(clean_structvar_file), path(part_metadata_file)
+        tuple val(gene_name), path(clean_structvar_file), path(part_metadata_file), val(filter_type), val(filter_config)
 
     output:
         path("${gene_name}_structural_variants_filtered.tsv"), emit: filtered_clean_tsv
-        tuple val(gene_name), path("${gene_name}_structural_variants_filtered.rds"), emit: filtered_clean_rds
+        tuple val(gene_name), val(filter_type), path("${gene_name}_structural_variants_filtered.rds"), emit: filtered_clean_rds
         path("${gene_name}_structural_variants_filtered_stats.csv"), emit: stats_csv
         path "versions.yml", emit: versions
 
     script:
+    def filter_args = filter_config ? filter_config.collect { key, value -> "--${key} ${value}" }.join(' ') : ''
     """
-    echo "Processing gene: ${gene_name} with annotation file: ${clean_structvar_file}"
-    filterStructVar.R ${clean_structvar_file} ${gene_name} ${part_metadata_file}
+    echo "Processing gene: ${gene_name} with filter type: ${filter_type}"
+    echo "Filter configuration: ${filter_config}"
+    
+    filterStructVar.R ${clean_structvar_file} ${gene_name} ${part_metadata_file} ${filter_type} ${filter_args}
 
     # Check output files created
     if [ ! -f "${gene_name}_structural_variants_filtered.tsv" ]; then
@@ -37,6 +40,7 @@ process filterStructVar {
     fi
     
     echo "Both TSV and RDS files created successfully"
+    echo "Filtered files created successfully for ${filter_type}"
     
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

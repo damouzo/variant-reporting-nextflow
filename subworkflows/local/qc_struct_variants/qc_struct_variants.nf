@@ -103,19 +103,39 @@ workflow QC_STRUCT_VARIANTS {
     // RUN plotQCstructVar
     plotQCstructVar(cleanVar_Metadata_input_ch)
 
+    // Create unified filter channels that include both basic and custom filters
+    unified_filter_input_ch = cleanFormatStructVar.out.clean_rds
+        .join(extractStructVarPartID.out.partMet_rds)
+        .flatMap { gene_name, clean_table, part_met ->
+            def all_filters = []
+            // Always add basic filtering (no custom filters)
+            all_filters.add(tuple(gene_name, clean_table, part_met, 'filter_basic', [:]))
+            // Add custom filters if they exist for this gene
+            def gene_filters = params.custom_filters[gene_name]
+            if (gene_filters) {
+                gene_filters.each { filter_type, filter_config ->
+                    if (filter_config.enabled) {
+                        all_filters.add(tuple(gene_name, clean_table, part_met, filter_type, filter_config.filters))
+                    }
+                }
+            }
+            return all_filters
+        }
+
     // RUN filterStructVar
-    filterStructVar(cleanVar_Metadata_input_ch)
+    filterStructVar(unified_filter_input_ch)
             // out.stats_csv: path(filtered_stats_file)
             // out.filtered_clean_tsv: path(filtered_tsv_file)
-            // out.filtered_clean_rds: tuple(val(gene_name), path(filtered_rds_file))
+            // out.filtered_clean_rds: tuple(val(gene_name), val(filter_type), path(filtered_rds_file))
     
     // Preparar input para plotFilteredStructVar 
     plot_filter_input_ch = filterStructVar.out.filtered_clean_rds
-        .join(prot_files_with_gene_ch)
-        .join(exon_files_with_gene_ch)
-        .join(extractStructVarPartID.out.partMet_rds)
-        .map { gene_name, filtered_table, prot_file, exon_file, part_met -> 
-            tuple(gene_name, filtered_table, prot_file, exon_file, part_met) 
+        .map { gene_name, filter_type, filtered_rds -> tuple(gene_name, filter_type, filtered_rds) }
+        .join(prot_files_with_gene_ch, by: 0)  // Join by gene_name
+        .join(exon_files_with_gene_ch, by: 0)  // Join by gene_name
+        .join(extractStructVarPartID.out.partMet_rds, by: 0)  // Join by gene_name
+        .map { gene_name, filter_type, filtered_table, prot_file, exon_file, part_met -> 
+            tuple(gene_name, filter_type, filtered_table, prot_file, exon_file, part_met) 
         }
 
     // RUN plotFilteredStructVar
@@ -137,8 +157,11 @@ workflow QC_STRUCT_VARIANTS {
     partID_txt            = params.enable_sql_queries ? extractStructVarPartID.out.partID_txt : Channel.empty()
     partMet_tsv           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_tsv : Channel.empty()
     partMet_rds           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_rds : Channel.empty()
-    filtered_clean_tsv    = filterStructVar.out.filtered_clean_tsv     
+    filtered_clean_tsv    = filterStructVar.out.filtered_clean_tsv     // File TSV (all filter types)
+    filtered_clean_rds    = filterStructVar.out.filtered_clean_rds     // tuple(val(gene_name), val(filter_type), path(rds_file))
+    filtered_stats_csv    = filterStructVar.out.stats_csv              // Filter statistics (all filter types)
     plot_files            = plotQCstructVar.out.plots
+    filtered_plots        = plotFilteredStructVar.out.filtered_plots   // PDFs (all filter types)
     versions              = ch_versions
 }
 

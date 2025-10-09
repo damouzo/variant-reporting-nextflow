@@ -63,24 +63,39 @@ workflow QC_SMALL_VARIANTS {
     plotQCsmallVar(plot_input_ch)
             // out.plots: path(plot_file)
     
-    // Prepare input for filterSmallVar - combine clean_rds with partMet
-    filter_input_ch = cleanFormatSmallVar.out.clean_rds
+    // Create unified filter channels that include both basic and custom filters
+    unified_filter_input_ch = cleanFormatSmallVar.out.clean_rds
         .join(extractSmallVarPartID.out.partMet_rds)
-        .map { gene_name, clean_table,  part_met -> tuple(gene_name, clean_table, part_met) }
+        .flatMap { gene_name, clean_table, part_met ->
+            def all_filters = []
+            // Always add basic filtering (no custom filters)
+            all_filters.add(tuple(gene_name, clean_table, part_met, 'filter_basic', [:]))
+            // Add custom filters if they exist for this gene
+            def gene_filters = params.custom_filters[gene_name]
+            if (gene_filters) {
+                gene_filters.each { filter_type, filter_config ->
+                    if (filter_config.enabled) {
+                        all_filters.add(tuple(gene_name, clean_table, part_met, filter_type, filter_config.filters))
+                    }
+                }
+            }
+            return all_filters
+        }
     
     // RUN filterSmallVar
-    filterSmallVar(filter_input_ch)
+    filterSmallVar(unified_filter_input_ch)
             // out.stats_csv: path(filtered_stats_file)
             // out.filtered_clean_tsv: path(filtered_tsv_file)
-            // out.filtered_clean_rds: tuple(val(gene_name), path(filtered_rds_file))
+            // out.filtered_clean_rds: tuple(val(gene_name), val(filter_type), path(filtered_rds_file))
 
     // Preparar input para plotFilteredSmallVar 
     plot_filter_input_ch = filterSmallVar.out.filtered_clean_rds
-        .join(prot_files_with_gene_ch)
-        .join(exon_files_with_gene_ch)
-        .join(extractSmallVarPartID.out.partMet_rds)
-        .map { gene_name, filtered_table, prot_file, exon_file, part_met -> 
-            tuple(gene_name, filtered_table, prot_file, exon_file, part_met) 
+        .map { gene_name, filter_type, filtered_rds -> tuple(gene_name, filter_type, filtered_rds) }
+        .join(prot_files_with_gene_ch, by: 0)  // Join by gene_name
+        .join(exon_files_with_gene_ch, by: 0)  // Join by gene_name
+        .join(extractSmallVarPartID.out.partMet_rds, by: 0)  // Join by gene_name
+        .map { gene_name, filter_type, filtered_table, prot_file, exon_file, part_met -> 
+            tuple(gene_name, filter_type, filtered_table, prot_file, exon_file, part_met) 
         }
 
     // RUN plotFilteredSmallVar
@@ -95,14 +110,15 @@ workflow QC_SMALL_VARIANTS {
     ch_versions = ch_versions.mix(plotFilteredSmallVar.out.versions)
 
     emit:
-    clean_tsv           = cleanFormatSmallVar.out.clean_tsv         // File TSV
-    clean_rds           = cleanFormatSmallVar.out.clean_rds         // tuple(val(gene_name), path(rds_file)) 
-    filtered_clean_tsv  = filterSmallVar.out.filtered_clean_tsv     // File TSV
-    filtered_clean_rds  = filterSmallVar.out.filtered_clean_rds     // tuple(val(gene_name), path(rds_file))
-    partID_txt          = extractSmallVarPartID.out.partID_txt      // participant IDs .txt
-    partMet_tsv         = extractSmallVarPartID.out.partMet_tsv     // participant metadata .tsv
-    partMet_rds        = extractSmallVarPartID.out.partMet_rds      // participant metadata .rds
-    plots               = plotQCsmallVar.out.plots                  // PDFs
-    filtered_plots      = plotFilteredSmallVar.out.filtered_plots   // PDFs
-    versions            = ch_versions
+    clean_tsv               = cleanFormatSmallVar.out.clean_tsv         // File TSV
+    clean_rds               = cleanFormatSmallVar.out.clean_rds         // tuple(val(gene_name), path(rds_file)) 
+    filtered_clean_tsv      = filterSmallVar.out.filtered_clean_tsv     // File TSV (all filter types)
+    filtered_clean_rds      = filterSmallVar.out.filtered_clean_rds     // tuple(val(gene_name), val(filter_type), path(rds_file))
+    filtered_stats_csv      = filterSmallVar.out.stats_csv              // Filter statistics (all filter types)
+    partID_txt              = extractSmallVarPartID.out.partID_txt      // participant IDs .txt
+    partMet_tsv             = extractSmallVarPartID.out.partMet_tsv     // participant metadata .tsv
+    partMet_rds             = extractSmallVarPartID.out.partMet_rds     // participant metadata .rds
+    plots                   = plotQCsmallVar.out.plots                  // PDFs
+    filtered_plots          = plotFilteredSmallVar.out.filtered_plots   // PDFs (all filter types)
+    versions                = ch_versions
 }
