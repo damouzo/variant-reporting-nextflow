@@ -3,8 +3,8 @@
 
 # Arguments --------------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 5) {
-  stop("script.R <filtered_table> <gene_name> <prot_file> <exon_file> <part_metadata_file>")
+if (length(args) != 6) {
+  stop("script.R <filtered_table> <gene_name> <prot_file> <exon_file> <part_metadata_file> <filter_type>")
 }
 
 filtered_table  <- args[1] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\results\\DHX34\\DHX34_small_variants.rds"
@@ -12,8 +12,14 @@ gene_name       <- args[2] # "DHX34"
 prot_file       <- args[3] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\data\\reference\\Protein\\DHX34.gff"
 exon_file       <- args[4] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\data\\reference\\Exon\\DHX34.tsv"
 p_metadata_file <- args[5] # "C:\\Users\\qp241615\\OneDrive - Queen Mary, University of London\\Documents\\4. Projects\\1. DHX34\\results\\DHX34\\DHX34_small_variants_participantMetadata.tsv"
+filter_type     <- args[6] # "filter_basic", "filter_onlyHaem", "filter_rmNeuro", etc.
 
 # Message validation files
+cat("=================================================\n")
+cat("PLOT GENERATION FOR FILTERED STRUCTURAL VARIANTS\n")
+cat("Gene:", gene_name, "\n")
+cat("Filter type:", filter_type, "\n")
+cat("=================================================\n")
 cat("Validating input files for gene:", gene_name, "\n")
 missing_files <- c()
 if (!file.exists(filtered_table)) missing_files <- c(missing_files, paste("Filtered table:", filtered_table))
@@ -58,8 +64,8 @@ metadata_info <- readRDS(p_metadata_file)
 
 
 # Plots Functions ---------------------------------------------------------
-generate_barplot <- function(data, gene, variant_orig) {
-  pdf(paste0(gene, "_Filtered_", variant_orig, "_Frec_SVtype.pdf"), width = 10, height = 8)
+generate_barplot <- function(data, gene, variant_orig, filter_type) {
+  pdf(paste0(gene, "_", filter_type, "_Filtered_", variant_orig, "_Frec_SVtype.pdf"), width = 10, height = 8)
   print(
     ggplot(data %>% count(INFO_SVTYPE), aes(x = INFO_SVTYPE, y = n)) +
       geom_col(fill = "#377EB8") +
@@ -75,8 +81,8 @@ generate_barplot <- function(data, gene, variant_orig) {
   dev.off()
 }
 
-generate_circos_plot <- function(data, gene, variant_orig) {
-  pdf(paste0(gene, "_Filtered_", variant_orig, "_Circle_Translocation.pdf"), width = 8, height = 8)
+generate_circos_plot <- function(data, gene, variant_orig, filter_type) {
+  pdf(paste0(gene, "_", filter_type, "_Filtered_", variant_orig, "_Circle_Translocation.pdf"), width = 8, height = 8)
   circos.clear()
   circos.initializeWithIdeogram(species = "hg38")
   title(paste0("Translocation of ", gene, " variants in ", variant_orig, " samples"))
@@ -92,8 +98,8 @@ generate_circos_plot <- function(data, gene, variant_orig) {
   dev.off()
 }
 
-generate_cnv_plot <- function(data, gene, variant_orig) {
-  pdf(paste0(gene, "_Filtered_", variant_orig, "_CNV_Size_CN.pdf"), width = 10, height = 8)
+generate_cnv_plot <- function(data, gene, variant_orig, filter_type) {
+  pdf(paste0(gene, "_", filter_type, "_Filtered_", variant_orig, "_CNV_Size_CN.pdf"), width = 10, height = 8)
   print(
     ggplot(data, aes(x = log10(SV_size), y = CN_CNVonly, color = CN_status)) +
       geom_point(alpha = 0.7, size = 3) +
@@ -109,8 +115,8 @@ generate_cnv_plot <- function(data, gene, variant_orig) {
   dev.off()
 }
 
-generate_inversion_plot <- function(data, gene, variant_orig) {
-  pdf(paste0(gene, "_Filtered_", variant_orig, "_Inversions_Segments.pdf"), width = 14, height = 10)
+generate_inversion_plot <- function(data, gene, variant_orig, filter_type) {
+  pdf(paste0(gene, "_", filter_type, "_Filtered_", variant_orig, "_Inversions_Segments.pdf"), width = 14, height = 10)
   
   # Get gene boundaries from exon info
   gene_start <- min(exon_info$ExonStart, na.rm = TRUE)
@@ -211,7 +217,7 @@ for (variant_orig in unique(variants_table$variant_origin)) {
   }
 
   # Generate barplot
-  generate_barplot(variants_table_VarOrg, gene_name, variant_orig)
+  generate_barplot(variants_table_VarOrg, gene_name, variant_orig, filter_type)
 
   # Generate circos plot for translocations
   BND_df <- variants_table_VarOrg %>%
@@ -224,7 +230,7 @@ for (variant_orig in unique(variants_table$variant_origin)) {
   if (nrow(BND_df) == 0) {
     cat("No translocation data available for variant origin:", variant_orig, "\n")
   } else {
-    generate_circos_plot(BND_df, gene_name, variant_orig)
+    generate_circos_plot(BND_df, gene_name, variant_orig, filter_type)
   }
 
   # Generate CNV plot
@@ -241,7 +247,7 @@ for (variant_orig in unique(variants_table$variant_origin)) {
   if (nrow(variants_table_VarOrg_CNV) == 0) {
     cat("No CNV data available for variant origin:", variant_orig, "\n")
   } else {
-    generate_cnv_plot(variants_table_VarOrg_CNV, gene_name, variant_orig)
+    generate_cnv_plot(variants_table_VarOrg_CNV, gene_name, variant_orig, filter_type)
   }
 
   # Generate inversion plot
@@ -251,7 +257,7 @@ for (variant_orig in unique(variants_table$variant_origin)) {
   if (nrow(variants_table_VarOrg_INV) == 0) {
     cat("No inversion data available for variant origin:", variant_orig, "\n")
   } else {
-    generate_inversion_plot(variants_table_VarOrg_INV, gene_name, variant_orig)
+    generate_inversion_plot(variants_table_VarOrg_INV, gene_name, variant_orig, filter_type)
   }
 }
 
@@ -463,7 +469,7 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
     }
     
     # Create PDF with all barplots on the same page using grid functions
-    pdf_file <- paste0(gene_name, "_Filtered_",variant_orig,"_PartMetadata_Barplots_", filename_suffix, ".pdf")
+    pdf_file <- paste0(gene_name, "_", filter_type, "_Filtered_",variant_orig,"_PartMetadata_Barplots_", filename_suffix, ".pdf")
     pdf(pdf_file, width = 12, height = 16)
     
     # Create a single page with both grids
@@ -597,7 +603,12 @@ for (variant_orig in unique(variants_table$variant_origin)) {
   )
 }
 
-cat("Plots generated successfully for gene:", gene_name, "\n")
+cat("=================================================\n")
+cat("STRUCTURAL VARIANT PLOT GENERATION COMPLETED\n")
+cat("Gene:", gene_name, "\n")
+cat("Filter type:", filter_type, "\n")
+cat("All plots generated successfully!\n")
+cat("=================================================\n")
 
 
 

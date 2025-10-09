@@ -3,8 +3,8 @@
 
 # Arguments --------------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 5) {
-  stop("script.R <filtered_table> <gene_name> <prot_file> <exon_file> <part_metadata_file>")
+if (length(args) != 6) {
+  stop("script.R <filtered_table> <gene_name> <prot_file> <exon_file> <part_metadata_file> <filter_type>")
 }
 
 filtered_table  <- args[1] # "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/results/DHX34/DHX34_small_variants_filtered.rds"
@@ -12,8 +12,14 @@ gene_name       <- args[2] # "DHX34"
 prot_file       <- args[3] # "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/reference/Protein/DHX34.gff"
 exon_file       <- args[4] # "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/data/reference/Exon/DHX34.tsv"
 p_metadata_file <- args[5] # "/mnt/c/Users/qp241615/OneDrive - Queen Mary, University of London/Documents/4. Projects/1. DHX34/results/DHX34/DHX34_small_variants_participantMetadata.rds"
+filter_type     <- args[6] # "filter_basic", "filter_onlyHaem", "filter_rmNeuro", etc.
 
 # Message validation files
+cat("=================================================\n")
+cat("PLOT GENERATION FOR FILTERED SMALL VARIANTS\n")
+cat("Gene:", gene_name, "\n")
+cat("Filter type:", filter_type, "\n")
+cat("=================================================\n")
 cat("Validating input files for gene:", gene_name, "\n")
 missing_files <- c()
 if (!file.exists(filtered_table)) missing_files <- c(missing_files, paste("Filtered table:", filtered_table))
@@ -2032,7 +2038,7 @@ metadata_info <- readRDS(p_metadata_file)
 
 # Visual Plots -----------------------------------------------------------------
 ## Distribution of MAF_variants ------
-pdf(paste0(gene_name, "_Filtered_MAF_Distribution.pdf"))
+pdf(paste0(gene_name, "_", filter_type, "_Filtered_MAF_Distribution.pdf"))
 ggplot(variants_table, aes(x = log10(MAF_variant + 1e-6))) +
       geom_histogram(bins = 50, fill = "black") +
           labs(title = paste0(gene_name, " MAF Distribution"), x = "MAF (log10) + 1e-6",
@@ -2042,7 +2048,7 @@ dev.off()
 
 
 ## MAF vs IMPACT -------
-pdf(paste0(gene_name,"_Filtered_MAFvsIMPACT.pdf"), width=14, height=8)
+pdf(paste0(gene_name,"_", filter_type, "_Filtered_MAFvsIMPACT.pdf"), width=14, height=8)
 ggplot(variants_table, aes(x = log10(MAF_variant + 1e-6), y = IMPACT_annotation, 
                   color = CLIN_SIG_annotation, shape = SYMBOL_annotation)) +
       geom_jitter(width = 0.1, height = 0.1, size = 3, alpha = 0.8) +
@@ -2056,7 +2062,7 @@ dev.off()
 
 
 ## IMPACT Frequency -------
-pdf(paste0(gene_name,"_Filtered_IMPACT_Frequency.pdf"))
+pdf(paste0(gene_name,"_", filter_type, "_Filtered_IMPACT_Frequency.pdf"))
 print(ggplot(variants_table, aes(x = IMPACT_annotation)) + 
       geom_bar(fill = "#0072B2", color = "black", width = 0.7) +
       geom_text(stat="count", aes(label= after_stat(count)),vjust=-0.5, color="black", size=5) +
@@ -2104,7 +2110,7 @@ adaptive_bw <- round(adaptive_bw / 100) * 100
 cat(paste0("Gene length: ", format(gene_length, big.mark = ","), " bp\n"))
 cat(paste0("Adaptive bandwidth: ", format(adaptive_bw, big.mark = ","), " bp\n"))
 
-pdf(paste0(gene_name,"_Filtered_Density_variants.pdf"), width=14, height=8)
+pdf(paste0(gene_name,"_", filter_type, "_Filtered_Density_variants.pdf"), width=14, height=8)
 ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IMPACT_annotation)) +
     geom_density(bw=adaptive_bw,alpha = 0.3) +
     geom_rect(data = exon_info,
@@ -2180,7 +2186,7 @@ create_lollipop_plot <- function(df_data, gene_name, subset_label, protein_info,
   
   
   # Create filename and plot
-  filename <- paste0(gene_name, "_Filtered_Lollipop_", subset_label, ".pdf")
+  filename <- paste0(gene_name, "_", filter_type, "_Filtered_Lollipop_", subset_label, ".pdf")
 
   pdf(filename, height=9)
   lolliplot(sample.gr.rot, features, legend=legends, ylab="Num. of Participants",
@@ -2495,7 +2501,7 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
     }
     
     # Create PDF with all barplots on the same page using grid functions
-    pdf_file <- paste0(gene_name, "_Filtered_PartMetadata_Barplots_", filename_suffix, ".pdf")
+    pdf_file <- paste0(gene_name, "_", filter_type, "_Filtered_PartMetadata_Barplots_", filename_suffix, ".pdf")
     pdf(pdf_file, width = 12, height = 16)
     
     # Create a single page with both grids
@@ -2615,5 +2621,10 @@ create_metadata_plots(
 )
 
 
-cat("Plots generated successfully for gene:", gene_name, "\n")
+cat("=================================================\n")
+cat("PLOT GENERATION COMPLETED\n")
+cat("Gene:", gene_name, "\n")
+cat("Filter type:", filter_type, "\n")
+cat("All plots generated successfully!\n")
+cat("=================================================\n")
 
