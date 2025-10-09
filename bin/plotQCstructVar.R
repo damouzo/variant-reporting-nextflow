@@ -100,8 +100,9 @@ generate_inversion_plot <- function(data, gene, variant_orig) {
   pdf(paste0(gene, "_QC_", variant_orig, "_Inversions_Segments.pdf"), width = 14, height = 10)
   
   plot_data <- data %>%
-    mutate(start_pos = as.numeric(POS), end_pos = as.numeric(INFO_END), quality = as.numeric(QUAL_SVonly), 
-          unique_inversion = paste0(CHROM, "_", POS, "_", INFO_END)) %>%
+    mutate(start_pos = as.numeric(POS), end_pos = as.numeric(INFO_END), 
+           quality = as.numeric(QUAL_SVonly),  # Asegurar que 'quality' es numérico
+           unique_inversion = paste0(CHROM, "_", POS, "_", INFO_END)) %>%
     group_by(unique_inversion, start_pos, end_pos) %>%
     summarise(count = n(), avg_quality = mean(quality, na.rm = TRUE), .groups = "drop") %>%
     mutate(inversion_length = end_pos - start_pos) %>%
@@ -115,12 +116,12 @@ generate_inversion_plot <- function(data, gene, variant_orig) {
     scale_color_gradient(low = "#0066CC", high = "#FF0000", name = "Avg Quality") +
     theme_minimal() +
     labs(title = paste0("Inversions in ", variant_orig, " variants for ", gene),
-      x = "Genomic Position (bp)", y = "Unique Inversions") +
+         x = "Genomic Position (bp)", y = "Unique Inversions") +
     theme(axis.text.x = element_text(size = 12, angle = 45, hjust = 1),
-      axis.text.y = element_blank(), axis.ticks.y = element_blank(),
-      axis.title.x = element_text(size = 14), axis.title.y = element_text(size = 14),
-      plot.title = element_text(size = 16), legend.title = element_text(size = 12),
-      legend.text = element_text(size = 10)) +
+          axis.text.y = element_blank(), axis.ticks.y = element_blank(),
+          axis.title.x = element_text(size = 14), axis.title.y = element_text(size = 14),
+          plot.title = element_text(size = 16), legend.title = element_text(size = 12),
+          legend.text = element_text(size = 10)) +
     scale_x_continuous(labels = scales::comma_format()) +
     scale_y_continuous(breaks = NULL)
   
