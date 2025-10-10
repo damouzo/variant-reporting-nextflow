@@ -60,19 +60,26 @@ labkey_to_df <- function(sql_query, database, maxrows){
                     maxRows = maxrows) %>%
     mutate(across(everything(), as.character))
 }
+cat("Test1")
+# Progressive query with increasing limits
+row_limits <- c(10000, 100000, 500000, 1000000)
 
-query <- labkey_to_df(sql, labkey_main, 1000000)
-
+for (limit in row_limits) {
+  query <- labkey_to_df(sql, labkey_main, limit)
+  cat(paste0("Retrieved ", nrow(query), " rows with limit ", limit, "\n"))
+  if (nrow(query) < limit) break
+}
+cat("Test2")
     # Condense by Participant
 participant_metadata <- query %>%
     group_by(participant_id) %>%
     summarise(across(everything(), ~ paste(unique(.[!is.na(.)]), collapse = ", ")),
               .groups = "drop")
 
-
+cat("Test3")
 
 # Output ------------------------------------------------------------------------
-cat("/nGlimpse of metadata and ID files of participants")
+cat("\nGlimpse of metadata and ID files of participants\n")
 
 # Save participants metadata
 write.table(participant_metadata, file = paste0(gene_name, "_small_variants_participantMetadata.tsv"), 
