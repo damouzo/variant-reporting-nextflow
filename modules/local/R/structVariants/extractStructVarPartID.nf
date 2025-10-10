@@ -2,7 +2,7 @@
 
 process extractStructVarPartID {
     tag { gene_name }
-    label 'r_process'
+    label 'r_process_sql'
 
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
 
