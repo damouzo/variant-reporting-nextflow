@@ -5,7 +5,7 @@ process plotFilteredSmallVar {
     label 'r_process'
 
     // Publicar todos los PDFs generados en subcarpeta organizada por gen y filtro
-    publishDir "${params.results_dir}/${gene_name}${filter_type == 'filter_basic' && !params.custom_filters?.containsKey(gene_name) ? '/plots' : '/' + filter_type + '/plots'}", mode: 'copy'
+    publishDir "${params.results_dir}/${gene_name}/${filter_type}/plots", mode: 'copy'
 
     input:
     tuple val(gene_name), val(filter_type), path(filtered_table), path(prot_file), path(exon_file), path(part_metadata_file)

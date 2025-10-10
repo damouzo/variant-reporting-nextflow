@@ -4,7 +4,7 @@ process filterSmallVar {
     tag { "${gene_name}_${filter_type}" }
     label 'r_process'
     
-    publishDir "${params.results_dir}/${gene_name}${filter_type == 'filter_basic' && !params.custom_filters?.containsKey(gene_name) ? '' : '/' + filter_type}", mode: 'copy'
+    publishDir "${params.results_dir}/${gene_name}/${filter_type}", mode: 'copy'
 
     input:
         tuple val(gene_name), path(clean_smallvar_file), path(part_metadata_file), val(filter_type), val(filter_config)
