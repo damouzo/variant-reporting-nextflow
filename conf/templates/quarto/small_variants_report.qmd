@@ -1,0 +1,923 @@
+---
+title: "{{PROJECT_NAME}} - Small Variants Quality Control Report"
+subtitle: "{{GENE_NAME}} Gene Analysis"
+author: "{{PROJECT_AUTHOR}} ({{PROJECT_CODE}})"
+date: "`r Sys.Date()`"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: true
+    code-summary: "Show code"
+    embed-resources: true
+    self-contained: true
+    self-contained-math: true
+    keep-md: false
+    fig-width: 10
+    fig-height: 6
+execute:
+  echo: false
+  warning: false
+  message: false
+lightbox:
+  match: auto
+  effect: zoom
+  desc-position: bottom
+  loop: true
+---
+
+```{r setup}
+#| include: false
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(DT)
+library(plotly)
+library(gt)
+
+# Set global options
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center")
+
+# Define data directory
+data_dir <- "data"
+
+# Project information from pipeline
+project_info <- list(
+  code = "{{PROJECT_CODE}}",
+  name = "{{PROJECT_NAME}}",
+  author = "{{PROJECT_AUTHOR}}",
+  gene = "{{GENE_NAME}}"
+)
+```
+
+# Executive Summary
+
+This report presents a detailed quality control analysis of small germline variants identified in the **{{GENE_NAME}}** 
+gene as part of the **{{PROJECT_CODE}}** research initiative. The analysis includes comprehensive QC visualizations, 
+basic and custom filtering strategies, and detailed statistical summaries of variant distributions and participant metadata.
+
+Key components of this report include:
+
+- Quality control visualizations of variant distributions and impact assessments
+- Participant metadata analysis with demographic and clinical context
+- Comprehensive filtering analysis with somatic/germline distinction
+- Interactive tables for detailed variant exploration
+- Statistical summaries of all analysis steps
+
+---
+
+# Raw Variants QC Analysis
+
+## 1. Variant Distribution and Impact Assessment
+
+This section presents visualizations of all raw variant quality control metrics, including impact distribution, 
+minor allele frequencies, and density distributions across the {{GENE_NAME}} gene.
+
+```{r qc-impact-frequency}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+# Display QC_IMPACT_Frequency plot
+impact_plot_files <- list.files(data_dir, pattern = "*_QC_IMPACT_Frequency\\.pdf$", full.names = TRUE)
+
+if (length(impact_plot_files) > 0) {
+  pdf_path <- impact_plot_files[1]
+  
+  if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+    tryCatch({
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      png_filename <- "qc_impact_frequency.png"
+      png::writePNG(img, png_filename)
+      
+      cat('\n<div style="margin: 30px 0; text-align: center;">\n')
+      cat('  <img src="', png_filename, '" style="width:90%; height:auto; border:1px solid #dee2e6; border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="IMPACT Frequency Distribution" />\n', sep = "")
+      cat('</div>\n')
+      
+    }, error = function(e) {
+      cat('\n<div style="padding:20px; background:#f8d7da; border:1px solid #f5c2c7; border-radius:5px;">\n')
+      cat('  <p style="color:#842029; margin:0;">Could not convert PDF: ', basename(pdf_path), '</p>\n')
+      cat('</div>\n')
+    })
+  }
+} else {
+  cat("⚠️ QC IMPACT Frequency plot not found.\n")
+}
+```
+
+**_Figure 1:_** *Distribution of variant consequences by IMPACT level (HIGH, MODERATE, LOW, MODIFIER) showing the functional 
+significance of identified variants in {{GENE_NAME}}.*
+
+```{r qc-maf-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+# Display QC_MAF_Distribution plot
+maf_plot_files <- list.files(data_dir, pattern = "*_QC_MAF_Distribution\\.pdf$", full.names = TRUE)
+
+if (length(maf_plot_files) > 0) {
+  pdf_path <- maf_plot_files[1]
+  
+  if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+    tryCatch({
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      png_filename <- "qc_maf_distribution.png"
+      png::writePNG(img, png_filename)
+      
+      cat('\n<div style="margin: 30px 0; text-align: center;">\n')
+      cat('  <img src="', png_filename, '" style="width:90%; height:auto; border:1px solid #dee2e6; border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="MAF Distribution" />\n', sep = "")
+      cat('</div>\n')
+      
+    }, error = function(e) {
+      cat('\n<div style="padding:20px; background:#f8d7da; border:1px solid #f5c2c7; border-radius:5px;">\n')
+      cat('  <p style="color:#842029; margin:0;">Could not convert PDF: ', basename(pdf_path), '</p>\n')
+      cat('</div>\n')
+    })
+  }
+} else {
+  cat("⚠️ QC MAF Distribution plot not found.\n")
+}
+```
+
+**_Figure 2:_** *Minor Allele Frequency (MAF) distribution showing the population frequency spectrum of variants 
+identified in {{GENE_NAME}}, with emphasis on rare variants (MAF < 0.001).*
+
+```{r qc-maf-vs-impact}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+# Display QC_MAFvsIMPACT plot
+maf_impact_plot_files <- list.files(data_dir, pattern = "*_QC_MAFvsIMPACT\\.pdf$", full.names = TRUE)
+
+if (length(maf_impact_plot_files) > 0) {
+  pdf_path <- maf_impact_plot_files[1]
+  
+  if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+    tryCatch({
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      png_filename <- "qc_maf_vs_impact.png"
+      png::writePNG(img, png_filename)
+      
+      cat('\n<div style="margin: 30px 0; text-align: center;">\n')
+      cat('  <img src="', png_filename, '" style="width:90%; height:auto; border:1px solid #dee2e6; border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="MAF vs IMPACT" />\n', sep = "")
+      cat('</div>\n')
+      
+    }, error = function(e) {
+      cat('\n<div style="padding:20px; background:#f8d7da; border:1px solid #f5c2c7; border-radius:5px;">\n')
+      cat('  <p style="color:#842029; margin:0;">Could not convert PDF: ', basename(pdf_path), '</p>\n')
+      cat('</div>\n')
+    })
+  }
+} else {
+  cat("⚠️ QC MAF vs IMPACT plot not found.\n")
+}
+```
+
+**_Figure 3:_** *Relationship between Minor Allele Frequency and variant impact, demonstrating the inverse correlation 
+between population frequency and predicted functional consequence.*
+
+```{r qc-density-variants}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+# Display QC_Density_variants plot
+density_plot_files <- list.files(data_dir, pattern = "*_QC_Density_variants\\.pdf$", full.names = TRUE)
+
+if (length(density_plot_files) > 0) {
+  pdf_path <- density_plot_files[1]
+  
+  if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+    tryCatch({
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      png_filename <- "qc_density_variants.png"
+      png::writePNG(img, png_filename)
+      
+      cat('\n<div style="margin: 30px 0; text-align: center;">\n')
+      cat('  <img src="', png_filename, '" style="width:90%; height:auto; border:1px solid #dee2e6; border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="Variant Density Distribution" />\n', sep = "")
+      cat('</div>\n')
+      
+    }, error = function(e) {
+      cat('\n<div style="padding:20px; background:#f8d7da; border:1px solid #f5c2c7; border-radius:5px;">\n')
+      cat('  <p style="color:#842029; margin:0;">Could not convert PDF: ', basename(pdf_path), '</p>\n')
+      cat('</div>\n')
+    })
+  }
+} else {
+  cat("⚠️ QC Density variants plot not found.\n")
+}
+```
+
+**_Figure 4:_** *Genomic distribution and density of variants across the {{GENE_NAME}} gene, highlighting regions 
+with variant clustering and potential mutational hotspots.*
+
+## 2. Participant Metadata Analysis
+
+This section presents the demographic and clinical characteristics of participants with all raw variants in {{GENE_NAME}}, 
+providing crucial context for variant interpretation and population analysis.
+
+```{r qc-participant-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+# Look for the specific QC participant metadata file
+metadata_file <- paste0(project_info$gene, "_QC_CanonicalVar_PartMetadata_Barplots.pdf")
+pdf_path <- file.path(data_dir, metadata_file)
+
+if (file.exists(pdf_path)) {
+  # Convert PDF to PNG and display
+  img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+  png_filename <- "qc_metadata_main.png"
+  png::writePNG(img, png_filename)
+  
+  # Display the image
+  cat('![](', png_filename, '){width="100%"}\n\n', sep = "")
+  
+} else {
+  cat("⚠️ Participant metadata plot not found:", metadata_file, "\n")
+}
+```
+
+**_Figure 5:_** *Distribution of participants by demographic and clinical characteristics, including age, sex, 
+disease categories, and other relevant metadata for individuals carrying {{GENE_NAME}} variants. Click the image to view additional metadata plots (pathogenic, VUS, etc.) in the gallery.*
+
+---
+
+# Filtering Analysis
+
+## 3. Basic Filtering
+
+This section presents the results of basic filtering applied to the small variants dataset. Basic filtering includes 
+standard quality thresholds, population frequency cutoffs, and canonical transcript selection criteria.
+
+### 3.1 Basic Filtering Statistics
+
+```{r basic-filter-stats-table}
+#| echo: false
+
+# Load basic filtering statistics
+basic_stats_files <- list.files(data_dir, pattern = "*_small_variants_filter_basic_stats\\.csv$", full.names = TRUE)
+
+if (length(basic_stats_files) > 0) {
+  basic_stats <- read_csv(basic_stats_files[1], show_col_types = FALSE)
+  
+  if (nrow(basic_stats) > 0) {
+    # Create a nicely formatted table using gt
+    basic_stats %>%
+      mutate(
+        metric = case_when(
+          metric == "total_raw_variants" ~ "Total Raw Variants",
+          metric == "total_canonical_variants" ~ "Total Canonical Variants", 
+          metric == "total_canonical_-" ~ "   • Canonical '-' Variants (No ClinVar)",
+          metric == "total_canonical_benign" ~ "   • Canonical Benign Variants",
+          metric == "total_canonical_pathogenic" ~ "   • Canonical Pathogenic Variants",
+          metric == "total_canonical_VUS" ~ "   • Canonical VUS Variants",
+          metric == "total_canonical_nonBenign" ~ "Canonical Non-Benign Variants",
+          metric == "total_canonical_nonBenign_MAF<0.001" ~ "Canonical Non-Benign and MAF < 0.001 Variants",
+          TRUE ~ metric
+        )
+      ) %>%
+      gt() %>%
+      tab_header(
+        title = paste("Basic Filtering Statistics for", project_info$gene),
+        subtitle = "Progressive filtering steps with variant counts and number of participants"
+      ) %>%
+      cols_label(
+        metric = "Filtering Step",
+        variant_count = "Variant Count",
+        participant_count = "Participant Count"
+      ) %>%
+      tab_style(
+        style = list(
+          cell_fill(color = "#f8f9fa"),
+          cell_text(weight = "bold")
+        ),
+        locations = cells_column_labels()
+      ) %>%
+      tab_style(
+        style = list(
+          cell_fill(color = "#e3f2fd"),
+          cell_text(weight = "bold")
+        ),
+        locations = cells_body(rows = metric == "Final Filtered Variants (MAF<0.001)")
+      ) %>%
+      fmt_number(
+        columns = c(variant_count, participant_count),
+        decimals = 0
+      )
+  } else {
+    cat("No basic filtering statistics data available.")
+  }
+} else {
+  cat("No basic filtering statistics files found.")
+}
+```
+
+**_Table 1:_** *Progressive filtering statistics showing the impact of each filtering step on variant and participant counts. 
+The final row represents the high-quality variant set used for downstream analysis.*
+
+### 3.2 Variant Filter QC
+
+```{r basic-filter-variant-plots}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 8
+
+# Look for basic filtering plots - excluding participant metadata and lollipop plots
+basic_filter_plot_files <- list.files(data_dir, pattern = ".*small_variants_filter_basic.*\\.pdf$", full.names = TRUE)
+
+# If not found, try alternative patterns
+if (length(basic_filter_plot_files) == 0) {
+  basic_filter_plot_files <- list.files(data_dir, pattern = ".*filter_basic.*(somatic|germline|unknown).*\\.pdf$", full.names = TRUE)
+  basic_filter_plot_files <- basic_filter_plot_files[grepl("small_variants", basic_filter_plot_files)]
+}
+
+# Exclude participant metadata and lollipop plots
+basic_filter_plot_files <- basic_filter_plot_files[!grepl("PartMetadata|Lollipop", basic_filter_plot_files)]
+
+if (length(basic_filter_plot_files) > 0) {
+  cat('\n<!-- Basic filtering variant plots -->\n')
+  
+  # Define plot order for variant visualizations
+  plot_order <- c("IMPACT_Frequency", "MAF_Distribution", "MAFvsIMPACT", "Density_variants")
+  
+  # Sort files by plot type for consistent ordering
+  ordered_files <- c()
+  for (plot_type in plot_order) {
+    matching_files <- basic_filter_plot_files[grepl(plot_type, basic_filter_plot_files)]
+    ordered_files <- c(ordered_files, matching_files)
+  }
+  
+  # Add any remaining files not in the predefined order
+  remaining_files <- setdiff(basic_filter_plot_files, ordered_files)
+  ordered_files <- c(ordered_files, remaining_files)
+  
+  for (plot_idx in seq_along(ordered_files)) {
+    pdf_path <- ordered_files[plot_idx]
+    pdf_name <- basename(pdf_path)
+    plot_name <- gsub("\\.(pdf)$", "", pdf_name)
+    
+    # Skip NoData placeholder files
+    if (grepl("NoData", pdf_name)) next
+    
+    # Convert PDF to PNG
+    if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+      tryCatch({
+        img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+        png_filename <- paste0("basic_filter_variant_plot_", plot_idx, ".png")
+        png::writePNG(img, png_filename)
+        
+        cat('\n<div style="margin: 30px 0; text-align: center;">\n')
+        cat('  <img src="', png_filename, '" style="width:90%; height:auto; border:1px solid #dee2e6; border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="', plot_name, '" />\n', sep = "")
+        cat('</div>\n')
+        
+      }, error = function(e) {
+        cat('\n<div style="padding:15px; background:#fff3cd; border:1px solid #ffc107; border-radius:5px; margin:10px 0;">\n')
+        cat('  <p style="color:#856404; margin:0;">Could not convert PDF: ', pdf_name, '</p>\n')
+        cat('</div>\n')
+      })
+    }
+  }
+  
+  cat('\n<!-- End basic filtering variant plots -->\n\n')
+} else {
+  cat("ℹ️ No basic filtering variant plot files found.\n")
+}
+```
+
+**_Figure 6-9:_** *Variant distribution visualizations after basic filtering, showing impact assessments, MAF distributions, 
+and genomic density patterns for high-quality variants in {{GENE_NAME}}.*
+
+### 3.3 Lollipop Plots
+
+```{r basic-filter-lollipop-plots}
+#| echo: false
+#| results: asis
+
+# Look for basic filtering lollipop plots - ONLY pathogenic and VUS
+lollipop_plot_files <- list.files(data_dir, pattern = ".*filter_basic.*Lollipop.*(pathogenic|VUS).*\\.pdf$", full.names = TRUE, ignore.case = TRUE)
+
+if (length(lollipop_plot_files) > 0) {
+  # Sort files to ensure pathogenic comes before VUS
+  pathogenic_files <- lollipop_plot_files[grepl("pathogenic", lollipop_plot_files, ignore.case = TRUE)]
+  vus_files <- lollipop_plot_files[grepl("VUS", lollipop_plot_files, ignore.case = TRUE)]
+  lollipop_plot_files <- c(pathogenic_files, vus_files)
+  
+  # Generate unique lightbox group for basic filtering lollipops
+  lightbox_group <- "basic-lollipop-gallery"
+  
+  # Display ONLY the first image (pathogenic), rest accessible via lightbox
+  pdf_path <- lollipop_plot_files[1]
+  pdf_name <- basename(pdf_path)
+  
+  # Convert first PDF to PNG and display
+  if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+    tryCatch({
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      png_filename <- "basic_lollipop_main.png"
+      png::writePNG(img, png_filename)
+      
+      # Show first image without label in lightbox group
+      cat('![](', png_filename, '){group="', lightbox_group, '" width="100%"}\n\n', sep = "")
+      
+    }, error = function(e) {
+      cat('\n<div style="padding:20px; background:#f8d7da; border:1px solid #f5c2c7; border-radius:5px;">\n')
+      cat('  <p style="color:#842029; margin:0;">Could not convert PDF: ', pdf_name, '</p>\n')
+      cat('</div>\n\n')
+    })
+  }
+  
+  # Process remaining PDFs but DON'T display them (only for lightbox)
+  if (length(lollipop_plot_files) > 1) {
+    for (pdf_idx in 2:length(lollipop_plot_files)) {
+      pdf_path <- lollipop_plot_files[pdf_idx]
+      pdf_name <- basename(pdf_path)
+      
+      # Convert PDF to PNG but don't display (hidden for lightbox only)
+      if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+        tryCatch({
+          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+          png_filename <- paste0("basic_lollipop_", pdf_idx, ".png")
+          png::writePNG(img, png_filename)
+          
+          # Add to lightbox group but hide from main view (without label)
+          cat('![](', png_filename, '){group="', lightbox_group, '" style="display:none;"}\n\n', sep = "")
+          
+        }, error = function(e) {
+          # Silent error for hidden images
+        })
+      }
+    }
+  }
+  
+  cat('\n**_Figure 9b:_** *Lollipop plots showing variant positions along the {{GENE_NAME}} protein structure for pathogenic and VUS variants after basic filtering. Click the image to toggle between variant categories.*\n\n')
+} else {
+  cat("ℹ️ No pathogenic or VUS lollipop plots found for basic filtering.\n\n")
+}
+```
+
+### 3.4 Participant Metadata
+
+```{r basic-filter-participant-metadata}
+#| echo: false
+#| results: asis
+
+# Look for all basic filtering metadata plots including all variant types
+metadata_plot_files <- list.files(data_dir, pattern = ".*filter_basic.*PartMetadata_Barplots.*\\.pdf$", full.names = TRUE)
+
+if (length(metadata_plot_files) > 0) {
+  # Sort files to ensure AllFiltered comes first
+  allfiltered_file <- metadata_plot_files[grepl("AllFiltered", metadata_plot_files)]
+  other_files <- metadata_plot_files[!grepl("AllFiltered", metadata_plot_files)]
+  metadata_plot_files <- c(allfiltered_file, other_files)
+  
+  # Generate unique lightbox group for basic filtering
+  lightbox_group <- "basic-metadata-gallery"
+  
+  # Display ONLY the first image (AllFiltered), rest accessible via lightbox
+  pdf_path <- metadata_plot_files[1]
+  pdf_name <- basename(pdf_path)
+  
+  # Convert first PDF to PNG and display
+  if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+    tryCatch({
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      png_filename <- "basic_metadata_main.png"
+      png::writePNG(img, png_filename)
+      
+      # Show first image without label in lightbox group
+      cat('![](', png_filename, '){group="', lightbox_group, '" width="100%"}\n\n', sep = "")
+      
+    }, error = function(e) {
+      cat('\n<div style="padding:20px; background:#f8d7da; border:1px solid #f5c2c7; border-radius:5px;">\n')
+      cat('  <p style="color:#842029; margin:0;">Could not convert PDF: ', pdf_name, '</p>\n')
+      cat('</div>\n\n')
+    })
+  }
+  
+  # Process remaining PDFs but DON'T display them (only for lightbox)
+  if (length(metadata_plot_files) > 1) {
+    for (pdf_idx in 2:length(metadata_plot_files)) {
+      pdf_path <- metadata_plot_files[pdf_idx]
+      pdf_name <- basename(pdf_path)
+      
+      # Convert PDF to PNG but don't display (hidden for lightbox only)
+      if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+        tryCatch({
+          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+          png_filename <- paste0("basic_metadata_", pdf_idx, ".png")
+          png::writePNG(img, png_filename)
+          
+          # Add to lightbox group but hide from main view (without label)
+          cat('![](', png_filename, '){group="', lightbox_group, '" style="display:none;"}\n\n', sep = "")
+          
+        }, error = function(e) {
+          # Silent error for hidden images
+        })
+      }
+    }
+  }
+} else {
+  cat("Participant metadata plots not found for basic filtering.\n")
+}
+```
+
+**_Figure 10:_** *Distribution of participants carrying basic-filtered variants by demographic and clinical characteristics, 
+providing context for the filtered {{GENE_NAME}} variant set. Click the image to view additional metadata plots (pathogenic, VUS, etc.) in the gallery.*
+
+### 3.4 Filtered Variants Table
+
+```{r basic-filtered-variants-table}
+#| echo: false
+
+# Load basic filtered variants for interactive table
+basic_filtered_files <- list.files(data_dir, pattern = "*_small_variants_filter_basic_filtered\\.rds$", full.names = TRUE)
+
+if (length(basic_filtered_files) > 0) {
+  basic_filtered_data <- map_dfr(basic_filtered_files, ~{
+    data <- readRDS(.x)
+    if (is.data.frame(data) && nrow(data) > 0) {
+      data
+    } else {
+      NULL 
+    }
+  })
+  
+  if (!is.null(basic_filtered_data) && nrow(basic_filtered_data) > 0) {
+    # Select specific columns for display in the requested order
+    display_cols <- c(
+      "LabelVarPlot", "POS_variant", "REF_variant", "ALT_variant", 
+      "IMPACT_annotation", "Existing_variation_annotation", "Consequence_annotation", 
+      "MAX_AF_annotation", "CLIN_SIG_annotation", "NS_variant"
+    )
+    
+    # Filter to available columns
+    available_cols <- intersect(display_cols, names(basic_filtered_data))
+    
+    # Create interactive table with download buttons
+    dt_table <- basic_filtered_data %>%
+      select(any_of(available_cols)) %>%
+      datatable(
+        caption = paste("Basic Filtered Variants for", project_info$gene),
+        filter = 'top',
+        extensions = c('Buttons'),
+        options = list(
+          pageLength = 10,
+          scrollX = TRUE,
+          autoWidth = TRUE,
+          columnDefs = list(
+            list(className = 'dt-center', targets = '_all')
+          ),
+          dom = 'Bfrtip',
+          buttons = list(
+            'copy',
+            list(extend = 'csv', filename = paste0(project_info$gene, '_basic_filtered_variants')),
+            list(extend = 'excel', filename = paste0(project_info$gene, '_basic_filtered_variants')),
+            list(extend = 'pdf', filename = paste0(project_info$gene, '_basic_filtered_variants'))
+          )
+        ),
+        rownames = FALSE,
+        class = 'cell-border stripe hover'
+      )
+    
+    # Only apply IMPACT formatting if the column exists
+    if ("IMPACT_annotation" %in% available_cols) {
+      dt_table <- dt_table %>%
+        formatStyle(
+          'IMPACT_annotation',
+          backgroundColor = styleEqual(
+            c('HIGH', 'MODERATE', 'LOW', 'MODIFIER'),
+            c('#ffcccc', '#ffffcc', '#ccffcc', '#e6e6e6')
+          )
+        )
+    }
+    
+    dt_table
+  } else {
+    cat("No basic filtered variant data available.")
+  }
+} else {
+  cat("No basic filtered variants RDS files found.")
+}
+```
+
+**_Table 2:_** *Interactive table of variants that passed basic filtering criteria for {{GENE_NAME}}. 
+These represent high-quality, rare variants (MAF < 0.001) from canonical transcripts, excluding benign variants. 
+Use the search and filter features to explore specific variants of interest.*
+
+---
+
+## 4. Custom Filtering Results
+
+```{r custom-filters-detection}
+#| echo: false
+
+# Detect custom filters by looking for non-basic filter files
+all_filter_stats <- list.files(data_dir, pattern = ".*small_variants_filter_.*_stats\\.csv$", full.names = TRUE)
+custom_filter_stats <- all_filter_stats[!grepl("filter_basic", all_filter_stats)]
+
+# Extract unique custom filter names with more flexible pattern
+custom_filter_names <- c()
+for (file in custom_filter_stats) {
+  # Extract filter name from filename pattern: {gene}_small_variants_{filter_type}_stats.csv
+  filter_match <- str_extract(basename(file), "filter_[^_]+")
+  if (!is.na(filter_match) && filter_match != "filter_basic") {
+    custom_filter_names <- c(custom_filter_names, filter_match)
+  }
+}
+custom_filter_names <- unique(custom_filter_names)
+```
+
+```{r custom-filters-sections, results='asis'}
+#| echo: false
+
+if (length(custom_filter_names) > 0) {
+  for (filter_name in custom_filter_names) {
+    # Clean filter name for display
+    filter_display <- str_replace_all(filter_name, "_", " ") %>% str_to_title()
+    
+    # Main filter section (### level 3)
+    cat('\n### 4.', match(filter_name, custom_filter_names), ' ', filter_display, '\n\n', sep = "")
+    
+    # Statistics subsection (#### level 4)
+    cat('\n#### 4.', match(filter_name, custom_filter_names), '.1 ', filter_display, ' Statistics\n\n', sep = "")
+    
+    # Stats table for this custom filter
+    custom_stats_file <- list.files(data_dir, pattern = paste0(".*", filter_name, "_stats\\.csv$"), full.names = TRUE)
+    
+    if (length(custom_stats_file) > 0) {
+      custom_stats <- read_csv(custom_stats_file[1], show_col_types = FALSE)
+      
+      if (nrow(custom_stats) > 0) {
+        stats_table <- custom_stats %>%
+          filter(grepl(paste0(filter_name, "_after_custom_filtering"), metric)) %>%
+          mutate(
+            metric = paste("Final", filter_display, "Variants")
+          ) %>%
+          gt() %>%
+          tab_header(
+            title = paste(filter_display, "Filtering Statistics"),
+            subtitle = paste("Custom filtering results for", project_info$gene)
+          ) %>%
+          cols_label(
+            metric = "Filtering Step",
+            variant_count = "Variant Count", 
+            participant_count = "Participant Count"
+          ) %>%
+          fmt_number(
+            columns = c(variant_count, participant_count),
+            decimals = 0
+          )
+        
+        print(stats_table)
+      }
+    }
+    
+    cat('\n**_Table ', 2 + match(filter_name, custom_filter_names), ':_** ', filter_display, ' filtering statistics showing variant and participant counts at each filtering stage.\n\n', sep = "")
+    
+    # Variant Filter QC subsection (#### level 4)
+    cat('\n#### 4.', match(filter_name, custom_filter_names), '.2 Variant Filter QC\n\n', sep = "")
+    
+    custom_plot_files <- list.files(data_dir, pattern = paste0(".*small_variants_", filter_name, ".*(somatic|germline|unknown).*\\.pdf$"), full.names = TRUE)
+    
+    if (length(custom_plot_files) == 0) {
+      custom_plot_files <- list.files(data_dir, pattern = paste0(".*", filter_name, ".*\\.pdf$"), full.names = TRUE)
+    }
+    
+    variant_plot_files <- custom_plot_files[!grepl("PartMetadata|Lollipop", custom_plot_files)]
+    
+    if (length(variant_plot_files) > 0) {
+      plot_counter <- 1
+      for (pdf_path in variant_plot_files) {
+        pdf_name <- basename(pdf_path)
+        
+        if (grepl("NoData", pdf_name)) next
+        
+        if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+          tryCatch({
+            img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+            png_filename <- paste0("custom_", filter_name, "_variant_plot_", plot_counter, ".png")
+            png::writePNG(img, png_filename)
+            
+            cat('\n<div style="margin: 20px 0; text-align: center;">\n')
+            cat('  <img src="', png_filename, '" style="width:85%; height:auto; border:1px solid #dee2e6; border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="', pdf_name, '" />\n', sep = "")
+            cat('</div>\n')
+            
+            plot_counter <- plot_counter + 1
+          }, error = function(e) {
+            # Skip silently
+          })
+        }
+      }
+      
+      cat('\n**_Figure ', 10 + match(filter_name, custom_filter_names), ':_** *Variant distribution visualizations after ', filter_display, ', showing impact assessments and genomic patterns for {{GENE_NAME}}.*\n\n', sep = "")
+    } else {
+      cat('\nNo variant QC plots found for ', filter_display, '.\n\n', sep = "")
+    }
+    
+    # Lollipop Plots subsection (#### level 4)
+    cat('\n#### 4.', match(filter_name, custom_filter_names), '.3 Lollipop Plots\n\n', sep = "")
+    
+    lollipop_plot_files <- list.files(data_dir, pattern = paste0(".*", filter_name, ".*Lollipop.*\\.pdf$"), full.names = TRUE)
+    
+    if (length(lollipop_plot_files) > 0) {
+      allfiltered_file <- lollipop_plot_files[grepl("AllFiltered", lollipop_plot_files)]
+      other_files <- lollipop_plot_files[!grepl("AllFiltered", lollipop_plot_files)]
+      lollipop_plot_files <- c(allfiltered_file, other_files)
+      
+      lightbox_group <- paste0("custom-", filter_name, "-lollipop-gallery")
+      
+      pdf_path <- lollipop_plot_files[1]
+      pdf_name <- basename(pdf_path)
+      
+      if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+        tryCatch({
+          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+          png_filename <- paste0("custom_", filter_name, "_lollipop_main.png")
+          png::writePNG(img, png_filename)
+          
+          cat('![](', png_filename, '){group="', lightbox_group, '" width="100%"}\n\n', sep = "")
+          
+        }, error = function(e) {
+          cat('\n<div style="padding:20px; background:#f8d7da; border:1px solid #f5c2c7; border-radius:5px;">\n')
+          cat('  <p style="color:#842029; margin:0;">Could not convert PDF: ', pdf_name, '</p>\n')
+          cat('</div>\n\n')
+        })
+      }
+      
+      if (length(lollipop_plot_files) > 1) {
+        for (pdf_idx in 2:length(lollipop_plot_files)) {
+          pdf_path <- lollipop_plot_files[pdf_idx]
+          
+          if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+            tryCatch({
+              img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+              png_filename <- paste0("custom_", filter_name, "_lollipop_", pdf_idx, ".png")
+              png::writePNG(img, png_filename)
+              
+              cat('![](', png_filename, '){group="', lightbox_group, '" style="display:none;"}\n\n', sep = "")
+              
+            }, error = function(e) {
+              # Silent
+            })
+          }
+        }
+      }
+      
+      cat('\n**_Figure ', 10 + length(custom_filter_names) + match(filter_name, custom_filter_names), 'b:_** *Lollipop plots showing variant positions along the {{GENE_NAME}} protein structure after ', filter_display, '. Click the image to view additional variant categories in the gallery.*\n\n', sep = "")
+    } else {
+      cat('\nNo lollipop plots found for ', filter_display, '.\n\n', sep = "")
+    }
+    
+    # Participant Metadata subsection (#### level 4)
+    cat('\n#### 4.', match(filter_name, custom_filter_names), '.4 Participant Metadata\n\n', sep = "")
+    
+    metadata_plot_files <- list.files(data_dir, pattern = paste0(".*", filter_name, ".*PartMetadata_Barplots.*\\.pdf$"), full.names = TRUE)
+    
+    if (length(metadata_plot_files) > 0) {
+      allfiltered_file <- metadata_plot_files[grepl("AllFiltered", metadata_plot_files)]
+      other_files <- metadata_plot_files[!grepl("AllFiltered", metadata_plot_files)]
+      metadata_plot_files <- c(allfiltered_file, other_files)
+      
+      lightbox_group <- paste0("custom-", filter_name, "-metadata-gallery")
+      
+      pdf_path <- metadata_plot_files[1]
+      pdf_name <- basename(pdf_path)
+      
+      if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+        tryCatch({
+          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+          png_filename <- paste0("custom_", filter_name, "_metadata_main.png")
+          png::writePNG(img, png_filename)
+          
+          cat('![](', png_filename, '){group="', lightbox_group, '" width="100%"}\n\n', sep = "")
+          
+        }, error = function(e) {
+          cat('\n<div style="padding:20px; background:#f8d7da; border:1px solid #f5c2c7; border-radius:5px;">\n')
+          cat('  <p style="color:#842029; margin:0;">Could not convert PDF: ', pdf_name, '</p>\n')
+          cat('</div>\n\n')
+        })
+      }
+      
+      if (length(metadata_plot_files) > 1) {
+        for (pdf_idx in 2:length(metadata_plot_files)) {
+          pdf_path <- metadata_plot_files[pdf_idx]
+          
+          if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+            tryCatch({
+              img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+              png_filename <- paste0("custom_", filter_name, "_metadata_", pdf_idx, ".png")
+              png::writePNG(img, png_filename)
+              
+              cat('![](', png_filename, '){group="', lightbox_group, '" style="display:none;"}\n\n', sep = "")
+              
+            }, error = function(e) {
+              # Silent
+            })
+          }
+        }
+      }
+      
+      cat('\n**_Figure ', 10 + 2*length(custom_filter_names) + match(filter_name, custom_filter_names), ':_** *Distribution of participants carrying ', filter_display, ' variants by demographic and clinical characteristics. Click the image to view additional metadata plots in the gallery.*\n\n', sep = "")
+    } else {
+      cat('\nNo participant metadata plots found for ', filter_display, '.\n\n', sep = "")
+    }
+    
+    # Filtered Variants Table subsection (#### level 4)
+    cat('\n#### 4.', match(filter_name, custom_filter_names), '.5 Filtered Variants Table\n\n', sep = "")
+    
+    custom_filtered_files <- list.files(data_dir, pattern = paste0(".*", filter_name, "_filtered\\.rds$"), full.names = TRUE)
+    
+    if (length(custom_filtered_files) > 0) {
+      tryCatch({
+        custom_filtered_data <- readRDS(custom_filtered_files[1])
+        
+        if (is.data.frame(custom_filtered_data) && nrow(custom_filtered_data) > 0) {
+          display_cols <- c(
+            "LabelVarPlot", "POS_variant", "REF_variant", "ALT_variant", 
+            "IMPACT_annotation", "Existing_variation_annotation", "Consequence_annotation", 
+            "MAX_AF_annotation", "CLIN_SIG_annotation", "NS_variant"
+          )
+          
+          available_cols <- intersect(display_cols, names(custom_filtered_data))
+          
+          dt_table <- custom_filtered_data %>%
+            select(any_of(available_cols)) %>%
+            datatable(
+              caption = paste(filter_display, "Filtered Variants for", project_info$gene),
+              filter = "top",
+              extensions = c('Buttons'),
+              options = list(
+                pageLength = 10, 
+                scrollX = TRUE, 
+                autoWidth = TRUE,
+                columnDefs = list(
+                  list(className = 'dt-center', targets = '_all')
+                ),
+                dom = 'Bfrtip',
+                buttons = list(
+                  'copy',
+                  list(extend = 'csv', filename = paste0(project_info$gene, '_', filter_name, '_filtered_variants')),
+                  list(extend = 'excel', filename = paste0(project_info$gene, '_', filter_name, '_filtered_variants')),
+                  list(extend = 'pdf', filename = paste0(project_info$gene, '_', filter_name, '_filtered_variants'))
+                )
+              ),
+              rownames = FALSE,
+              class = "cell-border stripe hover"
+            )
+          
+          if ("IMPACT_annotation" %in% available_cols) {
+            dt_table <- dt_table %>%
+              formatStyle("IMPACT_annotation", backgroundColor = styleEqual(c("HIGH", "MODERATE", "LOW", "MODIFIER"), c("#ffcccc", "#ffffcc", "#ccffcc", "#e6e6e6")))
+          }
+          
+          print(htmltools::tagList(dt_table))
+          
+          cat('\n\n**_Table ', 2 + length(custom_filter_names) + match(filter_name, custom_filter_names), ':_** *Interactive table of variants that passed ', filter_display, ' for {{GENE_NAME}}. Use the search and filter features to explore specific variants.*\n\n', sep = "")
+        } else {
+          cat("\nNo", filter_display, "filtered variants available.\n\n")
+        }
+      }, error = function(e) {
+        cat("\nCould not load", filter_display, "filtered variants data.\n\n")
+      })
+    } else {
+      cat("\nNo filtered variants table found for ", filter_display, ".\n\n", sep = "")
+    }
+    
+    cat('\n---\n\n')
+  }
+} else {
+  cat("No custom filtering has been applied to this gene dataset.\n\n")
+}
+```
+
+
+---
+
+# Report Information
+
+**Pipeline Details:**  
+- **Project Code**: {{PROJECT_CODE}}  
+- **Project Name**: {{PROJECT_NAME}}  
+- **Gene Analyzed**: {{GENE_NAME}}  
+- **Report Type**: Small Variants Quality Control  
+- **Analysis Author**: {{PROJECT_AUTHOR}}  
+- **Report Format**: HTML (Self-contained)  
+- **Generation Date**: `r Sys.Date()`  
+- **R Version**: `r R.version.string`  
+
+---
+
+*This report was generated automatically by the {{PROJECT_CODE}} Nextflow pipeline using Quarto.*  
+*For questions about the analysis or interpretations, please contact the project team.*

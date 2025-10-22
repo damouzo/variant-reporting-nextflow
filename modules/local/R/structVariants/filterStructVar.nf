@@ -10,9 +10,9 @@ process filterStructVar {
         tuple val(gene_name), path(clean_structvar_file), path(part_metadata_file), val(filter_type), val(filter_config)
 
     output:
-        path("${gene_name}_structural_variants_filtered.tsv"), emit: filtered_clean_tsv
-        tuple val(gene_name), val(filter_type), path("${gene_name}_structural_variants_filtered.rds"), emit: filtered_clean_rds
-        path("${gene_name}_structural_variants_filtered_stats.csv"), emit: stats_csv
+        path("${gene_name}_structural_variants_${filter_type}_stats.csv"), emit: stats_csv
+        path("${gene_name}_structural_variants_${filter_type}_filtered.tsv"), emit: filtered_clean_tsv
+        tuple val(gene_name), val(filter_type), path("${gene_name}_structural_variants_${filter_type}_filtered.rds"), emit: filtered_clean_rds
         path "versions.yml", emit: versions
 
     script:
@@ -24,17 +24,17 @@ process filterStructVar {
     filterStructVar.R ${clean_structvar_file} ${gene_name} ${part_metadata_file} ${filter_type} ${filter_args}
 
     # Check output files created
-    if [ ! -f "${gene_name}_structural_variants_filtered.tsv" ]; then
+    if [ ! -f "${gene_name}_structural_variants_${filter_type}_filtered.tsv" ]; then
         echo "Error: TSV output file was not created"
         exit 1
     fi
 
-    if [ ! -f "${gene_name}_structural_variants_filtered.rds" ]; then
+    if [ ! -f "${gene_name}_structural_variants_${filter_type}_filtered.rds" ]; then
         echo "Error: RDS output file was not created"
         exit 1
     fi
 
-    if [ ! -f "${gene_name}_structural_variants_filtered_stats.csv" ]; then
+    if [ ! -f "${gene_name}_structural_variants_${filter_type}_stats.csv" ]; then
         echo "Error: Stats output file was not created"
         exit 1
     fi

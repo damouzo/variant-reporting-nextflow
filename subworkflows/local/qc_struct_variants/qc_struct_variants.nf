@@ -129,13 +129,16 @@ workflow QC_STRUCT_VARIANTS {
             // out.filtered_clean_rds: tuple(val(gene_name), val(filter_type), path(filtered_rds_file))
     
     // Preparar input para plotFilteredStructVar 
+    // Combine filtered data with reference files - each filter_type gets combined with same reference files
     plot_filter_input_ch = filterStructVar.out.filtered_clean_rds
-        .map { gene_name, filter_type, filtered_rds -> tuple(gene_name, filter_type, filtered_rds) }
-        .join(prot_files_with_gene_ch, by: 0)  // Join by gene_name
-        .join(exon_files_with_gene_ch, by: 0)  // Join by gene_name
-        .join(extractStructVarPartID.out.partMet_rds, by: 0)  // Join by gene_name
-        .map { gene_name, filter_type, filtered_table, prot_file, exon_file, part_met -> 
-            tuple(gene_name, filter_type, filtered_table, prot_file, exon_file, part_met) 
+        .combine(prot_files_with_gene_ch)
+        .filter { gene_filter, _filter_type, _filtered_rds, gene_prot, _prot_file -> gene_filter == gene_prot }
+        .combine(exon_files_with_gene_ch)
+        .filter { gene_filter, _filter_type, _filtered_rds, _gene_prot, _prot_file, gene_exon, _exon_file -> gene_filter == gene_exon }
+        .combine(extractStructVarPartID.out.partMet_rds)
+        .filter { gene_filter, _filter_type, _filtered_rds, _gene_prot, _prot_file, _gene_exon, _exon_file, gene_meta, _part_met -> gene_filter == gene_meta }
+        .map { gene_name, _filter_type, _filtered_table, _gene_prot, _prot_file, _gene_exon, _exon_file, _gene_meta, _part_met -> 
+            tuple(gene_name, _filter_type, _filtered_table, _prot_file, _exon_file, _part_met) 
         }
 
     // RUN plotFilteredStructVar

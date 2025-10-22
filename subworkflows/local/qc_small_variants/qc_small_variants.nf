@@ -5,6 +5,7 @@ include { extractSmallVarPartID } from '../../../modules/local/R/smallVariants/e
 include { plotQCsmallVar } from '../../../modules/local/R/smallVariants/plotQCsmallVar.nf'
 include { filterSmallVar } from '../../../modules/local/R/smallVariants/filterSmallVar.nf'
 include { plotFilteredSmallVar } from '../../../modules/local/R/smallVariants/plotFilteredSmallVar.nf'
+include { generateReport } from '../../../modules/local/quarto/generateReport.nf'
 
 
 workflow QC_SMALL_VARIANTS {
@@ -89,12 +90,15 @@ workflow QC_SMALL_VARIANTS {
             // out.filtered_clean_rds: tuple(val(gene_name), val(filter_type), path(filtered_rds_file))
 
     // Preparar input para plotFilteredSmallVar 
+    // Combine filtered data with reference files - each filter_type gets combined with same reference files
     plot_filter_input_ch = filterSmallVar.out.filtered_clean_rds
-        .map { gene_name, filter_type, filtered_rds -> tuple(gene_name, filter_type, filtered_rds) }
-        .join(prot_files_with_gene_ch, by: 0)  // Join by gene_name
-        .join(exon_files_with_gene_ch, by: 0)  // Join by gene_name
-        .join(extractSmallVarPartID.out.partMet_rds, by: 0)  // Join by gene_name
-        .map { gene_name, filter_type, filtered_table, prot_file, exon_file, part_met -> 
+        .combine(prot_files_with_gene_ch)
+        .filter { gene_filter, _filter_type, _filtered_rds, gene_prot, _prot_file -> gene_filter == gene_prot }
+        .combine(exon_files_with_gene_ch)
+        .filter { gene_filter, _filter_type, _filtered_rds, _gene_prot, _prot_file, gene_exon, _exon_file -> gene_filter == gene_exon }
+        .combine(extractSmallVarPartID.out.partMet_rds)
+        .filter { gene_filter, _filter_type, _filtered_rds, _gene_prot, _prot_file, _gene_exon, _exon_file, gene_meta, _part_met -> gene_filter == gene_meta }
+        .map { gene_name, filter_type, filtered_table, _gene_prot, prot_file, _gene_exon, exon_file, _gene_meta, part_met -> 
             tuple(gene_name, filter_type, filtered_table, prot_file, exon_file, part_met) 
         }
 
@@ -102,12 +106,116 @@ workflow QC_SMALL_VARIANTS {
     plotFilteredSmallVar(plot_filter_input_ch)
             // out.filtered_plots: path(filtered_plot_file)
 
+    // Generate Small Variants QC Report
+    template_file = Channel.fromPath("${params.templates_dir}/quarto/small_variants_report.qmd")
+    
+    // Prepare QC plots keyed by gene
+    qc_plots_keyed = plotQCsmallVar.out.plots
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+
+    // Prepare filtered plots keyed by gene
+    filtered_plots_keyed = plotFilteredSmallVar.out.filtered_plots
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+
+    // Prepare filtered RDS files keyed by gene (group by gene, collect all filter types)
+    filtered_rds_keyed = filterSmallVar.out.filtered_clean_rds
+        .map { gene_name, _filter_type, rds_file -> tuple(gene_name, rds_file) }
+        .groupTuple()
+
+    // Prepare filtered statistics keyed by gene
+    filtered_stats_keyed = filterSmallVar.out.stats_csv
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+
+    // Prepare filtered TSV files keyed by gene
+    filtered_tsv_keyed = filterSmallVar.out.filtered_clean_tsv
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+
+    // Prepare participant files keyed by gene
+    participant_txt_keyed = extractSmallVarPartID.out.partID_txt
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+
+    participant_tsv_keyed = extractSmallVarPartID.out.partMet_tsv
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+
+    // Prepare input files for the report - collect all files by gene
+    report_files_ch = cleanFormatSmallVar.out.clean_rds
+        .join(extractSmallVarPartID.out.partMet_rds)
+        .join(
+            qc_plots_keyed
+                .groupTuple()
+                .map { gene_name, plot_files -> tuple(gene_name, plot_files) }
+        )
+        .join(
+            filtered_plots_keyed
+                .groupTuple()
+                .map { gene_name, filtered_plot_files -> tuple(gene_name, filtered_plot_files) }
+        )
+        .join(
+            filtered_stats_keyed
+                .groupTuple()
+                .map { gene_name, stats_files -> tuple(gene_name, stats_files) }
+        )
+        .join(filtered_rds_keyed)
+        .join(
+            filtered_tsv_keyed
+                .groupTuple()
+                .map { gene_name, tsv_files -> tuple(gene_name, tsv_files) }
+        )
+        .join(
+            participant_txt_keyed
+                .groupTuple()
+                .map { gene_name, txt_files -> tuple(gene_name, txt_files) }
+        )
+        .join(
+            participant_tsv_keyed
+                .groupTuple()
+                .map { gene_name, part_tsv_files -> tuple(gene_name, part_tsv_files) }
+        )
+        .map { gene_name, clean_rds, part_met_rds, qc_plots, filtered_plots, stats_files, filtered_rds_files, filtered_tsv_files, part_txt_files, part_tsv_files ->
+            // Combine all input files for this gene
+            def input_files = [clean_rds, part_met_rds] + qc_plots + filtered_plots + stats_files + filtered_rds_files + filtered_tsv_files + part_txt_files + part_tsv_files
+            def report_type = "small_variants_report"
+            tuple(gene_name, report_type, input_files)
+        }
+        .combine(template_file)
+        .map { gene_name, report_type, input_files, template ->
+            tuple(gene_name, report_type, template, input_files) 
+        }
+        
+    // Generate the Quarto report
+    generateReport(report_files_ch)
+
     // Collect versions
     ch_versions = ch_versions.mix(cleanFormatSmallVar.out.versions)
     ch_versions = ch_versions.mix(extractSmallVarPartID.out.versions)
     ch_versions = ch_versions.mix(plotQCsmallVar.out.versions)
     ch_versions = ch_versions.mix(filterSmallVar.out.versions)
     ch_versions = ch_versions.mix(plotFilteredSmallVar.out.versions)
+    ch_versions = ch_versions.mix(generateReport.out.versions)
 
     emit:
     clean_tsv               = cleanFormatSmallVar.out.clean_tsv         // File TSV
@@ -120,5 +228,6 @@ workflow QC_SMALL_VARIANTS {
     partMet_rds             = extractSmallVarPartID.out.partMet_rds     // participant metadata .rds
     plots                   = plotQCsmallVar.out.plots                  // PDFs
     filtered_plots          = plotFilteredSmallVar.out.filtered_plots   // PDFs (all filter types)
+    html_reports            = generateReport.out.html_report            // HTML reports
     versions                = ch_versions
 }

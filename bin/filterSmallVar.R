@@ -278,16 +278,16 @@ glimpse(variant_filtered_table)
 
 
 # Save variant table  --------------------------------------------------------------
-# Save stats file
-stats_file_csv <- paste0(gene_name, "_small_variants_filtered_stats.csv")
+# Save stats file with filter type in filename
+stats_file_csv <- paste0(gene_name, "_small_variants_", filter_type, "_stats.csv")
 write.csv(stats_variants_filter, file = stats_file_csv, row.names = FALSE)
 
-# TSV
-out_file_tsv <- paste0(gene_name, "_small_variants_filtered.tsv")
+# TSV with filter type in filename
+out_file_tsv <- paste0(gene_name, "_small_variants_", filter_type, "_filtered.tsv")
 write.table(variant_filtered_table, file = out_file_tsv, sep = "\t", row.names = FALSE, quote = FALSE)
 
-# RDS
-out_file_rds <- paste0(gene_name, "_small_variants_filtered.rds")
+# RDS with filter type in filename
+out_file_rds <- paste0(gene_name, "_small_variants_", filter_type, "_filtered.rds")
 saveRDS(variant_filtered_table, file = out_file_rds)
 
 # Print output messages

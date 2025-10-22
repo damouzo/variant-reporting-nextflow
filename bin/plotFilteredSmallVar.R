@@ -1618,6 +1618,8 @@ lolliplot <- function(SNP.gr, features=NULL, ranges=NULL,
               range.tile.cnt2 <- countOverlaps(range.tile, unique(c(feature.start, feature.end)))
               range.tile.cnt <- range.tile.cnt + range.tile.cnt2
               range.width <- width(ranges[[i]])
+             
+
               range.tile.width <- log2(range.tile.cnt + 1)
               range.tile.width <- range.tile.width/sum(range.tile.width)
               range.tile.width <- range.width * range.tile.width
@@ -2041,7 +2043,7 @@ if (nrow(variants_table) == 0) {
   cat("WARNING: No small variants remain after filtering. Generating placeholder PDF.\n")
   
   # Generate a placeholder PDF to satisfy Nextflow output requirements
-  placeholder_file <- paste0(gene_name, "_", filter_type, "_NoData_placeholder.pdf")
+  placeholder_file <- paste0(gene_name, "_small_variants_", filter_type, "_NoData_placeholder.pdf")
   pdf(placeholder_file, width = 8, height = 6)
   plot(1, 1, type = "n", xlab = "", ylab = "", main = paste0(gene_name, " - ", filter_type, "\nNo Small Variants After Filtering"), 
        axes = FALSE, frame.plot = TRUE)
@@ -2052,6 +2054,18 @@ if (nrow(variants_table) == 0) {
   dev.off()
   
   cat("Generated placeholder PDF:", placeholder_file, "\n")
+  
+  # Create summary file even for no-data case
+  summary_info <- data.frame(
+    Gene = gene_name,
+    Filter_Type = filter_type,
+    Total_Variants = 0,
+    PDFs_Generated = 1,
+    Files_List = placeholder_file,
+    Timestamp = Sys.time(),
+    Status = "NoData"
+  )
+  write.csv(summary_info, paste0(gene_name, "_small_variants_", filter_type, "_plot_summary.csv"), row.names = FALSE)
   
   # Skip to the end - no need to try other plots
   cat("=================================================\n")
@@ -2067,36 +2081,40 @@ if (nrow(variants_table) == 0) {
 
 # Visual Plots -----------------------------------------------------------------
 ## Distribution of MAF_variants ------
-pdf(paste0(gene_name, "_", filter_type, "_Filtered_MAF_Distribution.pdf"))
-ggplot(variants_table, aes(x = log10(MAF_variant + 1e-6))) +
+# Small variants are always germline
+pdf(paste0(gene_name, "_small_variants_", filter_type, "_germline_MAF_Distribution.pdf"))
+print(ggplot(variants_table, aes(x = log10(MAF_variant + 1e-6))) +
       geom_histogram(bins = 50, fill = "black") +
-          labs(title = paste0(gene_name, " MAF Distribution"), x = "MAF (log10) + 1e-6",
-                     y = "Number of variants") +
-      theme_bw()
+      labs(title = paste0(gene_name, " germline variants - MAF Distribution"), 
+           x = "MAF (log10) + 1e-6", y = "Number of variants") +
+      theme_bw())
 dev.off()
 
 
 ## MAF vs IMPACT -------
-pdf(paste0(gene_name,"_", filter_type, "_Filtered_MAFvsIMPACT.pdf"), width=14, height=8)
-ggplot(variants_table, aes(x = log10(MAF_variant + 1e-6), y = IMPACT_annotation, 
+# Small variants are always germline
+pdf(paste0(gene_name, "_small_variants_", filter_type, "_germline_MAFvsIMPACT.pdf"), width=14, height=8)
+print(ggplot(variants_table, aes(x = log10(MAF_variant + 1e-6), y = IMPACT_annotation, 
                   color = CLIN_SIG_annotation, shape = SYMBOL_annotation)) +
       geom_jitter(width = 0.1, height = 0.1, size = 3, alpha = 0.8) +
       scale_x_continuous(name = "log10(MAF + 1e-6)") +
       scale_y_discrete(name = "IMPACT") +
-      scale_shape_manual(values = c(16, 17)) +  
-      theme_minimal(base_size = 14) +
-      theme(legend.position = "right",plot.title = element_text(face="bold", size=16)) +
-      labs(title = "MAF vs. IMPACT", color = "ClinVar",shape = "Gene")
+      scale_color_discrete(name = "ClinVar") +
+      scale_shape_discrete(name = "Gene") +
+      ggtitle(paste0(gene_name, " germline variants - MAF vs IMPACT")) +
+      theme_minimal() +
+      theme(legend.position = "right"))
 dev.off()
 
 
 ## IMPACT Frequency -------
-pdf(paste0(gene_name,"_", filter_type, "_Filtered_IMPACT_Frequency.pdf"))
+# Small variants are always germline
+pdf(paste0(gene_name, "_small_variants_", filter_type, "_germline_IMPACT_Frequency.pdf"))
 print(ggplot(variants_table, aes(x = IMPACT_annotation)) + 
       geom_bar(fill = "#0072B2", color = "black", width = 0.7) +
       geom_text(stat="count", aes(label= after_stat(count)),vjust=-0.5, color="black", size=5) +
       theme_minimal(base_size = 14) +
-      labs(title = paste0("Frequency of ", gene_name, " by IMPACT category"),
+      labs(title = paste0("Frequency of ", gene_name, " germline variants by IMPACT category"),
         x = "IMPACT Category", y = "Number of variants") +
       theme(plot.title = element_text(face = "bold", size = 16),
         axis.text.x = element_text(angle = 30, hjust = 1)))
@@ -2139,27 +2157,45 @@ adaptive_bw <- round(adaptive_bw / 100) * 100
 cat(paste0("Gene length: ", format(gene_length, big.mark = ","), " bp\n"))
 cat(paste0("Adaptive bandwidth: ", format(adaptive_bw, big.mark = ","), " bp\n"))
 
-pdf(paste0(gene_name,"_", filter_type, "_Filtered_Density_variants.pdf"), width=14, height=8)
-ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IMPACT_annotation)) +
-    geom_density(bw=adaptive_bw,alpha = 0.3) +
-    geom_rect(data = exon_info,
-              aes(xmin = ExonStart, xmax = ExonEnd, ymin = -max_density*0.03, ymax = max_density*0.03),
-              fill = "#00441B", alpha = 1, inherit.aes = FALSE) +
-    geom_text(data = exon_info,
-              aes(x = (ExonStart + ExonEnd) / 2, y = -max_density*0.03 * 3, label = seq_len(nrow(exon_info))),
-              size = 3.5, inherit.aes = FALSE) +
-    scale_color_manual(values =paletteer_d("RColorBrewer::RdYlGn")[c(1,3,5,10)]) +
-    scale_fill_manual(values = paletteer_d("RColorBrewer::RdYlGn")[c(1,3,5,10)]) +
-    facet_wrap(~ CHROM_variant, scales = "free_x") +
-    labs(title = paste0("Density distribution of ",gene_name ," variants in genomic positions by impact annotation"),
-        x = "Genomic Position (exons in dark green)", y = paste0("Density bw = ",adaptive_bw," bp"), color = "Impact", fill = "Impact") +
-    theme_minimal()
+# Small variants are always germline - recalculate density
+valid_groups <- variants_table %>% 
+  group_by(IMPACT_annotation) %>% 
+  filter(n() > 1)
+
+if (nrow(valid_groups) > 0) {
+  densities <- valid_groups %>% 
+    group_by(IMPACT_annotation) %>% 
+    group_map(~ density(.x$POS_variant)$y)
+  
+  max_density_germline <- max(unlist(densities), na.rm = TRUE)
+  if (is.infinite(max_density_germline)) {
+    max_density_germline <- 0
+  }
+} else {
+  max_density_germline <- 0
+}
+
+pdf(paste0(gene_name, "_small_variants_", filter_type, "_germline_Density_variants.pdf"), width=14, height=8)
+print(ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IMPACT_annotation)) +
+      geom_density(bw=adaptive_bw,alpha = 0.3) +
+      geom_rect(data = exon_info,
+                aes(xmin = ExonStart, xmax = ExonEnd, ymin = -max_density_germline*0.03, ymax = max_density_germline*0.03),
+                fill = "#00441B", alpha = 1, inherit.aes = FALSE) +
+      geom_text(data = exon_info,
+                aes(x = (ExonStart + ExonEnd) / 2, y = -max_density_germline*0.03 * 3, label = seq_len(nrow(exon_info))),
+                size = 3.5, inherit.aes = FALSE) +
+      scale_color_manual(values =paletteer_d("RColorBrewer::RdYlGn")[c(1,3,5,10)]) +
+      scale_fill_manual(values = paletteer_d("RColorBrewer::RdYlGn")[c(1,3,5,10)]) +
+      facet_wrap(~ CHROM_variant, scales = "free_x") +
+      labs(title = paste0("Density distribution of ",gene_name ," germline variants in genomic positions by impact annotation"),
+          x = "Genomic Position (exons in dark green)", y = paste0("Density bw = ",adaptive_bw," bp"), color = "Impact", fill = "Impact") +
+      theme_minimal())
 dev.off()
 
     
 # Lollipop Plot Function -----------------------------------------------------
 # Function to create trackViewer lollipop plot
-create_lollipop_plot <- function(df_data, gene_name, subset_label, protein_info, metadata_info) {
+create_lollipop_plot <- function(df_data, gene_name, subset_label, protein_info, metadata_info, variant_orig = NULL) {
   
   # Prepare features
   feature2plot <- c("Domain", "Motif", "Region", "Zinc finger")
@@ -2214,8 +2250,8 @@ create_lollipop_plot <- function(df_data, gene_name, subset_label, protein_info,
   }
   
   
-  # Create filename and plot
-  filename <- paste0(gene_name, "_", filter_type, "_Filtered_Lollipop_", subset_label, ".pdf")
+  # Small variants are always germline
+  filename <- paste0(gene_name, "_small_variants_", filter_type, "_germline_Lollipop_", subset_label, ".pdf")
 
   pdf(filename, height=9)
   lolliplot(sample.gr.rot, features, legend=legends, ylab="Num. of Participants",
@@ -2228,51 +2264,52 @@ create_lollipop_plot <- function(df_data, gene_name, subset_label, protein_info,
 }
 
 # Configuration for variant subsets -------------------------------------------
-# Define which combinations to analyze
-variant_subsets <- list(
-  # High priority combinations
-  list(
-    name = "HIGH_All",
-    filters = list(IMPACT_annotation = "HIGH"),
-    description = "High_Impact_All"
-  ),
-  list(
-    name = "HIGH_Canonical",
-    filters = list(IMPACT_annotation = "HIGH", CANONICAL_annotation = "YES"),
-    description = "High_Impact_Canonical"
-  ),
-  list(
-    name = "HIGH_NonCanonical", 
-    filters = list(IMPACT_annotation = "HIGH"),
-    special_filters = list(CANONICAL_annotation = "not_YES"),  # This will include NA and other values
-    description = "High_Impact_NonCanonical"
-  ),
-  list(
-    name = "MODERATE_All",
-    filters = list(IMPACT_annotation = "MODERATE"),
-    description = "Moderate_Impact_All"
-  ),
-  list(
-    name = "MODERATE_Canonical",
-    filters = list(IMPACT_annotation = "MODERATE", CANONICAL_annotation = "YES"), 
-    description = "Moderate_Impact_Canonical"
-  )
+# Define which combinations to analyze based on clinvar_category
+cat("Generating lollipop plot configurations based on ClinVar categories...\n")
+
+variant_subsets <- list()
+variant_subsets[[1]] <- list(
+  name = "All_Filtered_Variants",
+  filters = list(),  # No filters - all variants
+  description = "All_Filtered_Variants"
 )
 
+unique_clinvar_categories <- unique(variants_table$clinvar_category)
+unique_clinvar_categories <- unique_clinvar_categories[!is.na(unique_clinvar_categories) & unique_clinvar_categories != ""]
+
+
+# Generate configurations for each ClinVar category
+for (i in seq_along(unique_clinvar_categories)) {
+  clinvar_cat <- unique_clinvar_categories[i]
+  
+  # All variants in this category
+  variant_subsets[[length(variant_subsets) + 1]] <- list(
+    name = paste0("Filtered_", clinvar_cat),
+    filters = list(clinvar_category = clinvar_cat),
+    description = paste0("Filtered_", clinvar_cat)
+  )
+}
+
+cat("Total lollipop plot configurations:", length(variant_subsets), "\n")
+
 # Generate Lollipop Plots ------------------------------------------------------
-cat("Generating lollipop plots for prioritized variant subsets...\n")
+cat("Generating lollipop plots for ClinVar-based variant subsets...\n")
 
 for (subset_config in variant_subsets) {
   
   # Apply standard filters
   df_subset <- variants_table
-  for (column in names(subset_config$filters)) {
-    if (column %in% colnames(variants_table)) {
-      df_subset <- df_subset %>% 
-        filter(!!sym(column) == subset_config$filters[[column]])
-    } else {
-      cat("Warning: Column", column, "not found in data. Skipping subset", subset_config$name, "\n")
-      next
+  
+  # Only apply filters if there are any (skip for "All" variants)
+  if (length(subset_config$filters) > 0) {
+    for (column in names(subset_config$filters)) {
+      if (column %in% colnames(variants_table)) {
+        df_subset <- df_subset %>% 
+          filter(!!sym(column) == subset_config$filters[[column]])
+      } else {
+        cat("Warning: Column", column, "not found in data. Skipping subset", subset_config$name, "\n")
+        next
+      }
     }
   }
   
@@ -2303,10 +2340,9 @@ for (subset_config in variant_subsets) {
     next
   }
   
-
   # Generate lollipop plot
   cat("Processing subset:", subset_config$description, "(", nrow(df_subset), "variants )\n")
-  create_lollipop_plot(df_subset, gene_name, subset_config$description, protein_info, metadata_info)
+  create_lollipop_plot(df_subset, gene_name, subset_config$description, protein_info, metadata_info, "germline")
 }
 
 
@@ -2318,7 +2354,7 @@ clinvar_categories <- clinvar_categories[!is.na(clinvar_categories) & clinvar_ca
 cat("Found ClinVar categories:", paste(clinvar_categories, collapse = ", "), "\n")
 
 # Function to create metadata plots for a given dataset
-create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
+create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, variant_orig = NULL) {
   if (nrow(variant_data) == 0) {cat("No data available for", title_suffix, "\n")
     return(NULL)
   }
@@ -2530,7 +2566,8 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
     }
     
     # Create PDF with all barplots on the same page using grid functions
-    pdf_file <- paste0(gene_name, "_", filter_type, "_Filtered_PartMetadata_Barplots_", filename_suffix, ".pdf")
+    # Small variants are always germline
+    pdf_file <- paste0(gene_name, "_small_variants_", filter_type, "_germline_PartMetadata_Barplots_", filename_suffix, ".pdf")
     pdf(pdf_file, width = 12, height = 16)
     
     # Create a single page with both grids
@@ -2623,9 +2660,12 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix) {
   return(variant_metadata)
 }
 
-# Process each ClinVar category separately
+# Process each ClinVar category separately for metadata analysis
+# Small variants are always germline
+cat("Processing metadata plots for germline variants...\n")
+
 for (clinvar_cat in clinvar_categories) {
-  cat("\n--- Processing", clinvar_cat, "variants ---\n")
+  cat("\n--- Processing germline", clinvar_cat, "variants ---\n")
   
   # Filter variants for this specific category
   clinvar_cat_variants <- variants_table %>% 
@@ -2635,18 +2675,20 @@ for (clinvar_cat in clinvar_categories) {
   create_metadata_plots(
     variant_data = clinvar_cat_variants,
     title_suffix = clinvar_cat,
-    filename_suffix = clinvar_cat
+    filename_suffix = clinvar_cat,
+    variant_orig = "germline"
   )
 }
 
 # Create combined analysis for all small variants (canonical only)
-cat("\n--- Processing Canonical Small Variants ---\n")
+cat("\n--- Processing germline Canonical Small Variants ---\n")
 canonical_variants <- variants_table %>% filter(CANONICAL_annotation == "YES")
 
 create_metadata_plots(
   variant_data = canonical_variants,
-  title_suffix = "AllCanonical",
-  filename_suffix = "AllCanonical"
+  title_suffix = "AllFiltered",
+  filename_suffix = "AllFiltered",
+  variant_orig = "germline"
 )
 
 
@@ -2656,7 +2698,7 @@ if (length(pdf_files) == 0) {
   cat("WARNING: No PDF files were generated during plotting. Creating emergency placeholder.\n")
   
   # Generate emergency placeholder PDF
-  emergency_file <- paste0(gene_name, "_", filter_type, "_EmergencyPlaceholder.pdf")
+  emergency_file <- paste0(gene_name, "_small_variants_", filter_type, "_EmergencyPlaceholder.pdf")
   pdf(emergency_file, width = 8, height = 6)
   plot(1, 1, type = "n", xlab = "", ylab = "", main = paste0(gene_name, " - ", filter_type, "\nNo Plots Generated"), 
        axes = FALSE, frame.plot = TRUE)
