@@ -1618,6 +1618,8 @@ lolliplot <- function(SNP.gr, features=NULL, ranges=NULL,
               range.tile.cnt2 <- countOverlaps(range.tile, unique(c(feature.start, feature.end)))
               range.tile.cnt <- range.tile.cnt + range.tile.cnt2
               range.width <- width(ranges[[i]])
+             
+
               range.tile.width <- log2(range.tile.cnt + 1)
               range.tile.width <- range.tile.width/sum(range.tile.width)
               range.tile.width <- range.width * range.tile.width
@@ -2262,54 +2264,52 @@ create_lollipop_plot <- function(df_data, gene_name, subset_label, protein_info,
 }
 
 # Configuration for variant subsets -------------------------------------------
-# Define which combinations to analyze
-variant_subsets <- list(
-  # High priority combinations
-  list(
-    name = "HIGH_All",
-    filters = list(IMPACT_annotation = "HIGH"),
-    description = "High_Impact_All"
-  ),
-  list(
-    name = "HIGH_Canonical",
-    filters = list(IMPACT_annotation = "HIGH", CANONICAL_annotation = "YES"),
-    description = "High_Impact_Canonical"
-  ),
-  list(
-    name = "HIGH_NonCanonical", 
-    filters = list(IMPACT_annotation = "HIGH"),
-    special_filters = list(CANONICAL_annotation = "not_YES"),  # This will include NA and other values
-    description = "High_Impact_NonCanonical"
-  ),
-  list(
-    name = "MODERATE_All",
-    filters = list(IMPACT_annotation = "MODERATE"),
-    description = "Moderate_Impact_All"
-  ),
-  list(
-    name = "MODERATE_Canonical",
-    filters = list(IMPACT_annotation = "MODERATE", CANONICAL_annotation = "YES"), 
-    description = "Moderate_Impact_Canonical"
-  )
+# Define which combinations to analyze based on clinvar_category
+cat("Generating lollipop plot configurations based on ClinVar categories...\n")
+
+variant_subsets <- list()
+variant_subsets[[1]] <- list(
+  name = "All_Filtered_Variants",
+  filters = list(),  # No filters - all variants
+  description = "All_Filtered_Variants"
 )
 
-# Generate Lollipop Plots ------------------------------------------------------
-cat("Generating lollipop plots for prioritized variant subsets...\n")
+unique_clinvar_categories <- unique(variants_table$clinvar_category)
+unique_clinvar_categories <- unique_clinvar_categories[!is.na(unique_clinvar_categories) & unique_clinvar_categories != ""]
 
-# Small variants are always germline
-cat("Processing lollipop plots for germline variants...\n")
+
+# Generate configurations for each ClinVar category
+for (i in seq_along(unique_clinvar_categories)) {
+  clinvar_cat <- unique_clinvar_categories[i]
+  
+  # All variants in this category
+  variant_subsets[[length(variant_subsets) + 1]] <- list(
+    name = paste0("Filtered_", clinvar_cat),
+    filters = list(clinvar_category = clinvar_cat),
+    description = paste0("Filtered_", clinvar_cat)
+  )
+}
+
+cat("Total lollipop plot configurations:", length(variant_subsets), "\n")
+
+# Generate Lollipop Plots ------------------------------------------------------
+cat("Generating lollipop plots for ClinVar-based variant subsets...\n")
 
 for (subset_config in variant_subsets) {
   
   # Apply standard filters
   df_subset <- variants_table
-  for (column in names(subset_config$filters)) {
-    if (column %in% colnames(variants_table)) {
-      df_subset <- df_subset %>% 
-        filter(!!sym(column) == subset_config$filters[[column]])
-    } else {
-      cat("Warning: Column", column, "not found in data. Skipping subset", subset_config$name, "\n")
-      next
+  
+  # Only apply filters if there are any (skip for "All" variants)
+  if (length(subset_config$filters) > 0) {
+    for (column in names(subset_config$filters)) {
+      if (column %in% colnames(variants_table)) {
+        df_subset <- df_subset %>% 
+          filter(!!sym(column) == subset_config$filters[[column]])
+      } else {
+        cat("Warning: Column", column, "not found in data. Skipping subset", subset_config$name, "\n")
+        next
+      }
     }
   }
   
@@ -2336,13 +2336,12 @@ for (subset_config in variant_subsets) {
   
   # Check if we have data to plot
   if (nrow(df_subset) == 0) {
-    cat("No variants found for subset: germline", subset_config$description, "\n")
+    cat("No variants found for subset:", subset_config$description, "\n")
     next
   }
   
-
   # Generate lollipop plot
-  cat("Processing subset: germline", subset_config$description, "(", nrow(df_subset), "variants )\n")
+  cat("Processing subset:", subset_config$description, "(", nrow(df_subset), "variants )\n")
   create_lollipop_plot(df_subset, gene_name, subset_config$description, protein_info, metadata_info, "germline")
 }
 
@@ -2687,8 +2686,8 @@ canonical_variants <- variants_table %>% filter(CANONICAL_annotation == "YES")
 
 create_metadata_plots(
   variant_data = canonical_variants,
-  title_suffix = "AllCanonical",
-  filename_suffix = "AllCanonical",
+  title_suffix = "AllFiltered",
+  filename_suffix = "AllFiltered",
   variant_orig = "germline"
 )
 
