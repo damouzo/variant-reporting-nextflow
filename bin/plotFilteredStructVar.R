@@ -65,7 +65,7 @@ metadata_info <- readRDS(p_metadata_file)
 
 # Plots Functions ---------------------------------------------------------
 generate_barplot <- function(data, gene, variant_orig, filter_type) {
-  pdf(paste0(gene, "_", filter_type, "_Filtered_", variant_orig, "_Frec_SVtype.pdf"), width = 10, height = 8)
+  pdf(paste0(gene, "_structural_variants_", filter_type, "_", variant_orig, "_Frec_SVtype.pdf"), width = 10, height = 8)
   print(
     ggplot(data %>% count(INFO_SVTYPE), aes(x = INFO_SVTYPE, y = n)) +
       geom_col(fill = "#377EB8") +
@@ -82,7 +82,7 @@ generate_barplot <- function(data, gene, variant_orig, filter_type) {
 }
 
 generate_circos_plot <- function(data, gene, variant_orig, filter_type) {
-  pdf(paste0(gene, "_", filter_type, "_Filtered_", variant_orig, "_Circle_Translocation.pdf"), width = 8, height = 8)
+  pdf(paste0(gene, "_structural_variants_", filter_type, "_", variant_orig, "_Circle_Translocation.pdf"), width = 8, height = 8)
   circos.clear()
   circos.initializeWithIdeogram(species = "hg38")
   title(paste0("Translocation of ", gene, " variants in ", variant_orig, " samples"))
@@ -99,7 +99,7 @@ generate_circos_plot <- function(data, gene, variant_orig, filter_type) {
 }
 
 generate_cnv_plot <- function(data, gene, variant_orig, filter_type) {
-  pdf(paste0(gene, "_", filter_type, "_Filtered_", variant_orig, "_CNV_Size_CN.pdf"), width = 10, height = 8)
+  pdf(paste0(gene, "_structural_variants_", filter_type, "_", variant_orig, "_CNV_Size_CN.pdf"), width = 10, height = 8)
   print(
     ggplot(data, aes(x = log10(SV_size), y = CN_CNVonly, color = CN_status)) +
       geom_point(alpha = 0.7, size = 3) +
@@ -116,7 +116,7 @@ generate_cnv_plot <- function(data, gene, variant_orig, filter_type) {
 }
 
 generate_inversion_plot <- function(data, gene, variant_orig, filter_type) {
-  pdf(paste0(gene, "_", filter_type, "_Filtered_", variant_orig, "_Inversions_Segments.pdf"), width = 14, height = 10)
+  pdf(paste0(gene, "_structural_variants_", filter_type, "_", variant_orig, "_Inversions_Segments.pdf"), width = 14, height = 10)
   
   # Get gene boundaries from exon info
   gene_start <- min(exon_info$ExonStart, na.rm = TRUE)
@@ -212,7 +212,7 @@ if (nrow(variants_table) == 0) {
   cat("WARNING: No structural variants remain after filtering. Generating placeholder PDF.\n")
   
   # Generate a placeholder PDF to satisfy Nextflow output requirements
-  placeholder_file <- paste0(gene_name, "_", filter_type, "_NoData_placeholder.pdf")
+  placeholder_file <- paste0(gene_name, "_structural_variants_", filter_type, "_NoData_placeholder.pdf")
   pdf(placeholder_file, width = 8, height = 6)
   plot(1, 1, type = "n", xlab = "", ylab = "", main = paste0(gene_name, " - ", filter_type, "\nNo Structural Variants After Filtering"), 
        axes = FALSE, frame.plot = TRUE)
@@ -502,7 +502,7 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
     }
     
     # Create PDF with all barplots on the same page using grid functions
-    pdf_file <- paste0(gene_name, "_", filter_type, "_Filtered_",variant_orig,"_PartMetadata_Barplots_", filename_suffix, ".pdf")
+    pdf_file <- paste0(gene_name, "_structural_variants_", filter_type, "_", variant_orig, "_PartMetadata_Barplots_", filename_suffix, ".pdf")
     pdf(pdf_file, width = 12, height = 16)
     
     # Create a single page with both grids
@@ -642,7 +642,7 @@ if (length(pdf_files) == 0) {
   cat("WARNING: No PDF files were generated during plotting. Creating emergency placeholder.\n")
   
   # Generate emergency placeholder PDF
-  emergency_file <- paste0(gene_name, "_", filter_type, "_EmergencyPlaceholder.pdf")
+  emergency_file <- paste0(gene_name, "_structural_variants_", filter_type, "_EmergencyPlaceholder.pdf")
   pdf(emergency_file, width = 8, height = 6)
   plot(1, 1, type = "n", xlab = "", ylab = "", main = paste0(gene_name, " - ", filter_type, "\nNo Plots Generated"), 
        axes = FALSE, frame.plot = TRUE)

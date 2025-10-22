@@ -62,9 +62,20 @@ Key components of this report include:
 
 - Quality control visualizations of variant distributions and impact assessments
 - Participant metadata analysis with demographic and clinical context
-- Comprehensive filtering analysis
+- Comprehensive filtering analysis with somatic/germline distinction
 - Interactive tables for detailed variant exploration
 - Statistical summaries of all analysis steps
+
+## Important Note on File Nomenclature
+
+This report uses an updated, consistent naming convention for all generated plots and files:
+- **Structure**: `{GENE}_small_variants_{FILTER_TYPE}_{VARIANT_ORIGIN}_{PLOT_TYPE}.pdf`
+- **Variant Origins**: `somatic`, `germline`, or `unknown` (if origin cannot be determined)
+- **Examples**: 
+  - `DDX41_small_variants_filter_basic_germline_IMPACT_Frequency.pdf`
+  - `DDX41_small_variants_filter_older60_somatic_Lollipop_High_Impact_All.pdf`
+
+This naming convention ensures consistent identification across analysis types and enables easier comparison between somatic and germline variant patterns.
 
 ---
 
@@ -343,13 +354,14 @@ The final row represents the high-quality variant set used for downstream analys
 #| fig-width: 10
 #| fig-height: 8
 
-# Look for basic filtering plots - try multiple patterns
+# Look for basic filtering plots - updated patterns for new nomenclature
 basic_filter_plot_files <- list.files(data_dir, pattern = ".*small_variants_filter_basic.*\\.pdf$", full.names = TRUE)
 
 # If not found, try alternative patterns based on your file structure
 if (length(basic_filter_plot_files) == 0) {
   # Look for files with filter_basic in the name (from plots directory structure)
-  basic_filter_plot_files <- list.files(data_dir, pattern = ".*filter_basic.*\\.pdf$", full.names = TRUE)
+  # New pattern supports both somatic/germline and unknown variants
+  basic_filter_plot_files <- list.files(data_dir, pattern = ".*filter_basic.*(somatic|germline|unknown).*\\.pdf$", full.names = TRUE)
   basic_filter_plot_files <- basic_filter_plot_files[grepl("small_variants", basic_filter_plot_files)]
 }
 
@@ -550,8 +562,13 @@ if (length(custom_filter_names) > 0) {
       }
     }
     
-    # Plots for this custom filter
-    custom_plot_files <- list.files(data_dir, pattern = paste0(".*", filter_name, ".*\\.pdf$"), full.names = TRUE)
+    # Plots for this custom filter - updated to include somatic/germline variants
+    custom_plot_files <- list.files(data_dir, pattern = paste0(".*small_variants_", filter_name, ".*(somatic|germline|unknown).*\\.pdf$"), full.names = TRUE)
+    
+    # If not found, try the old pattern as fallback
+    if (length(custom_plot_files) == 0) {
+      custom_plot_files <- list.files(data_dir, pattern = paste0(".*", filter_name, ".*\\.pdf$"), full.names = TRUE)
+    }
     
     if (length(custom_plot_files) > 0) {
       cat('\n#### ', filter_display, ' Visualizations\n\n')
