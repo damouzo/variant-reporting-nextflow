@@ -54,7 +54,7 @@ project_info <- list(
 
 # Executive Summary
 
-This comprehensive **HTML report** presents a detailed quality control analysis of small germline variants identified in the **{{GENE_NAME}}** 
+This report presents a detailed quality control analysis of small germline variants identified in the **{{GENE_NAME}}** 
 gene as part of the **{{PROJECT_CODE}}** research initiative. The analysis includes comprehensive QC visualizations, 
 basic and custom filtering strategies, and detailed statistical summaries of variant distributions and participant metadata.
 
@@ -62,17 +62,17 @@ Key components of this report include:
 
 - Quality control visualizations of variant distributions and impact assessments
 - Participant metadata analysis with demographic and clinical context
-- Comprehensive filtering analysis (basic and custom filters)
+- Comprehensive filtering analysis
 - Interactive tables for detailed variant exploration
 - Statistical summaries of all analysis steps
 
 ---
 
-# Quality Control Analysis
+# Raw Variants QC Analysis
 
 ## 1. Variant Distribution and Impact Assessment
 
-This section presents comprehensive visualizations of variant quality control metrics, including impact distribution, 
+This section presents visualizations of all raw variant quality control metrics, including impact distribution, 
 minor allele frequencies, and density distributions across the {{GENE_NAME}} gene.
 
 ```{r qc-impact-frequency}
@@ -221,7 +221,7 @@ with variant clustering and potential mutational hotspots.*
 
 ## 2. Participant Metadata Analysis
 
-This section presents the demographic and clinical characteristics of participants with variants in {{GENE_NAME}}, 
+This section presents the demographic and clinical characteristics of participants with all raw variants in {{GENE_NAME}}, 
 providing crucial context for variant interpretation and population analysis.
 
 ```{r qc-participant-metadata}
@@ -287,19 +287,19 @@ if (length(basic_stats_files) > 0) {
         metric = case_when(
           metric == "total_raw_variants" ~ "Total Raw Variants",
           metric == "total_canonical_variants" ~ "Total Canonical Variants", 
-          metric == "total_canonical_-" ~ "Canonical Variants (No ClinVar)",
-          metric == "total_canonical_benign" ~ "Canonical Benign Variants",
-          metric == "total_canonical_pathogenic" ~ "Canonical Pathogenic Variants",
-          metric == "total_canonical_VUS" ~ "Canonical VUS Variants",
+          metric == "total_canonical_-" ~ "   Canonical '-' Variants (No ClinVar)",
+          metric == "total_canonical_benign" ~ "   Canonical Benign Variants",
+          metric == "total_canonical_pathogenic" ~ "   Canonical Pathogenic Variants",
+          metric == "total_canonical_VUS" ~ "   Canonical VUS Variants",
           metric == "total_canonical_nonBenign" ~ "Canonical Non-Benign Variants",
-          metric == "total_canonical_nonBenign_MAF<0.001" ~ "Final Filtered Variants (MAF<0.001)",
+          metric == "total_canonical_nonBenign_MAF<0.001" ~ "Canonical Non-Benign and MAF < 0.001 Variants",
           TRUE ~ metric
         )
       ) %>%
       gt() %>%
       tab_header(
         title = paste("Basic Filtering Statistics for", project_info$gene),
-        subtitle = "Progressive filtering steps and variant counts"
+        subtitle = "Progressive filtering steps with variant counts and number of participants"
       ) %>%
       cols_label(
         metric = "Filtering Step",
