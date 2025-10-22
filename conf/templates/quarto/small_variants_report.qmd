@@ -230,60 +230,21 @@ providing crucial context for variant interpretation and population analysis.
 #| fig-width: 10
 #| fig-height: 6
 
-# Look for all QC metadata plots including GEpatientMetadata variants
-metadata_plot_files <- list.files(data_dir, pattern = ".*_QC_CanonicalVar_PartMetadata_*\\.pdf$", full.names = TRUE)
+# Look for the specific QC participant metadata file
+metadata_file <- paste0(project_info$gene, "_QC_CanonicalVar_PartMetadata_Barplots.pdf")
+pdf_path <- file.path(data_dir, metadata_file)
 
-if (length(metadata_plot_files) > 0) {
-  # Sort files to ensure AllFiltered comes first
-  allfiltered_file <- metadata_plot_files[grepl("AllFiltered", metadata_plot_files)]
-  other_files <- metadata_plot_files[!grepl("AllFiltered", metadata_plot_files)]
-  metadata_plot_files <- c(allfiltered_file, other_files)
+if (file.exists(pdf_path)) {
+  # Convert PDF to PNG and display
+  img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+  png_filename <- "qc_metadata_main.png"
+  png::writePNG(img, png_filename)
   
-  # Display ONLY the first image (AllFiltered), rest accessible via lightbox
-  pdf_path <- metadata_plot_files[1]
-  pdf_name <- basename(pdf_path)
+  # Display the image
+  cat('![](', png_filename, '){width="100%"}\n\n', sep = "")
   
-  # Convert first PDF to PNG and display
-  if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
-    tryCatch({
-      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
-      png_filename <- "qc_metadata_main.png"
-      png::writePNG(img, png_filename)
-      
-      # Show first image without label in lightbox group
-      cat('![](', png_filename, '){group="qc-metadata-gallery" width="100%"}\n\n', sep = "")
-      
-    }, error = function(e) {
-      cat('\n<div style="padding:20px; background:#f8d7da; border:1px solid #f5c2c7; border-radius:5px;">\n')
-      cat('  <p style="color:#842029; margin:0;">Could not convert PDF: ', pdf_name, '</p>\n')
-      cat('</div>\n')
-    })
-  }
-  
-  # Process remaining PDFs but DON'T display them (only for lightbox)
-  if (length(metadata_plot_files) > 1) {
-    for (pdf_idx in 2:length(metadata_plot_files)) {
-      pdf_path <- metadata_plot_files[pdf_idx]
-      pdf_name <- basename(pdf_path)
-      
-      # Convert PDF to PNG but don't display (hidden for lightbox only)
-      if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
-        tryCatch({
-          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
-          png_filename <- paste0("qc_metadata_", pdf_idx, ".png")
-          png::writePNG(img, png_filename)
-          
-          # Add to lightbox group but hide from main view (without label)
-          cat('![](', png_filename, '){group="qc-metadata-gallery" style="display:none;"}\n\n', sep = "")
-          
-        }, error = function(e) {
-          # Silent error for hidden images
-        })
-      }
-    }
-  }
 } else {
-  cat("⚠️ QC Participant metadata plots not found.\n")
+  cat("⚠️ Participant metadata plot not found:", metadata_file, "\n")
 }
 ```
 
