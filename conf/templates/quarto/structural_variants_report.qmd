@@ -7,7 +7,7 @@ format:
   html:
     theme: cosmo
     toc: true
-    toc-depth: 3
+    toc-depth: 4
     toc-location: left
     code-fold: true
     code-summary: "Show code"
@@ -50,6 +50,132 @@ project_info <- list(
   author = "{{PROJECT_AUTHOR}}",
   gene = "{{GENE_NAME}}"
 )
+
+# Function to render and display plots with specific order
+display_plots_by_pattern <- function(data_dir, pattern_base, gene_name, var_type, plot_order) {
+  # Define plot patterns in order: frequency, translocations, copy number, inversions
+  plot_patterns <- c(
+    "Frec_SVtype",
+    "Circle_Translocation", 
+    "CNV_Size_CN",
+    "Inversions_Segments"
+  )
+  
+  # Plot descriptions for captions
+  plot_descriptions <- c(
+    "structural variant frequency distribution by type",
+    "translocation patterns in circular representation", 
+    "copy number variant size and copy number analysis",
+    "inversion segments analysis"
+  )
+  
+  displayed_plots <- 0
+  
+  for (i in seq_along(plot_patterns)) {
+    pattern <- plot_patterns[i]
+    description <- plot_descriptions[i]
+    
+    # Construct expected filename
+    plot_file <- paste0(gene_name, "_", pattern_base, "_", var_type, "_", pattern, ".pdf")
+    pdf_path <- file.path(data_dir, plot_file)
+    
+    if (file.exists(pdf_path)) {
+      displayed_plots <- displayed_plots + 1
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      png_filename <- paste0(tolower(var_type), "_", pattern, "_", displayed_plots, ".png")
+      png::writePNG(img, png_filename)
+      
+      cat('![](', png_filename, '){width="100%"}\n\n', sep = "")
+      cat('**_Figure:_** *', str_to_title(var_type), ' ', description, ' for {{GENE_NAME}}.*\n\n', sep = "")
+    }
+  }
+  
+  if (displayed_plots == 0) {
+    cat("⚠️ No ", var_type, " plots found for pattern: ", pattern_base, "\n\n")
+  }
+  
+  invisible(displayed_plots)
+}
+
+# Function to display participant metadata plots - Auto-detect all PartMetadata files
+display_metadata_plots <- function(data_dir, pattern_base, gene_name, var_type) {
+  # Search for all PartMetadata files matching the pattern automatically
+  search_pattern <- paste0(gene_name, "_", pattern_base, "_", var_type, "_PartMetadata_.*\\.pdf$")
+  metadata_files <- list.files(data_dir, pattern = search_pattern, full.names = TRUE)
+  
+  displayed_plots <- 0
+  
+  if (length(metadata_files) > 0) {
+    # Sort files to ensure "AllStructuralVar" comes first
+    metadata_files <- sort(metadata_files)
+    all_struct_idx <- grep("AllStructuralVar|AllstructuralVar", metadata_files, ignore.case = TRUE)
+    
+    if (length(all_struct_idx) > 0) {
+      # Move "All structural variants" to the beginning
+      all_struct_file <- metadata_files[all_struct_idx[1]]
+      other_files <- metadata_files[-all_struct_idx[1]]
+      metadata_files <- c(all_struct_file, other_files)
+    }
+    
+    # Generate unique lightbox group for this pattern and var_type
+    lightbox_group <- paste0(tolower(var_type), "-metadata-", gsub("[^a-zA-Z0-9]", "", pattern_base))
+    
+    # Display ONLY the first image (AllStructuralVar), rest accessible via lightbox
+    pdf_path <- metadata_files[1]
+    pdf_name <- basename(pdf_path)
+    
+    # Convert first PDF to PNG and display
+    if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+      tryCatch({
+        displayed_plots <- displayed_plots + 1
+        img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+        png_filename <- paste0(tolower(var_type), "_metadata_", displayed_plots, ".png")
+        png::writePNG(img, png_filename)
+        
+        # Display the main image with lightbox group
+        cat('\n<div style="margin: 30px 0; text-align: center;">\n')
+        cat('  <img src="', png_filename, '" style="width:90%; height:auto; border:1px solid #dee2e6; border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="Participant Metadata - All Structural Variants" data-gallery="', lightbox_group, '" />\n', sep = "")
+        cat('</div>\n\n')
+        
+      }, error = function(e) {
+        cat('\n<div style="padding:20px; background:#f8d7da; border:1px solid #f5c2c7; border-radius:5px;">\n')
+        cat('  <p style="color:#842029; margin:0;">Could not convert PDF: ', pdf_name, '</p>\n')
+        cat('</div>\n\n')
+      })
+    }
+    
+    # Process remaining PDFs but DON'T display them (only for lightbox)
+    if (length(metadata_files) > 1) {
+      for (pdf_idx in 2:length(metadata_files)) {
+        pdf_path <- metadata_files[pdf_idx]
+        pdf_name <- basename(pdf_path)
+        
+        if (file.exists(pdf_path)) {
+          if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+            tryCatch({
+              displayed_plots <- displayed_plots + 1
+              img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+              png_filename <- paste0(tolower(var_type), "_metadata_", displayed_plots, ".png")
+              png::writePNG(img, png_filename)
+              
+              # Hidden images for lightbox (display:none)
+              cat('<img src="', png_filename, '" style="display:none;" data-gallery="', lightbox_group, '" />\n', sep = "")
+              
+            }, error = function(e) {
+              # Silent fail for hidden images
+            })
+          }
+        }
+      }
+    }
+  }
+  
+  if (displayed_plots == 0) {
+    cat("⚠️ No ", var_type, " metadata plots found for pattern: ", pattern_base, "\n\n")
+  }
+  
+  invisible(displayed_plots)
+}
 ```
 
 # Executive Summary
@@ -62,91 +188,83 @@ and participant metadata.
 Key components of this report include:
 
 - Quality control visualizations of CNV and SV distributions for germline and somatic variants
-- Participant metadata analysis with demographic and clinical context
+- Participant metadata analysis with demographic and clinical context  
 - Comprehensive filtering analysis distinguishing somatic and germline variants
 - Interactive tables for detailed variant exploration
 - Statistical summaries of all analysis steps
 
 ---
 
-# Raw Structural Variants QC Analysis
+# Raw Structural Variants QC
 
-## 1. Structural Variant Distribution and Classification
+This section presents the quality control analysis of raw structural variants, organized by germline and somatic classifications 
+to provide clear insights into the distinct patterns and characteristics of each variant type in the {{GENE_NAME}} gene.
 
-This section presents visualizations of all raw structural variant quality control metrics, including CNV and SV distributions, 
-germline versus somatic classifications, and size distributions across the {{GENE_NAME}} gene.
+## Germline Variants
 
-```{r qc-struct-var-distribution}
+### 1. Structural Variant Distribution and Classification
+Below are quality-control plots providing a concise overview of germline structural variants identified in the {{GENE_NAME}} gene. 
+The figures summarize variant type frequencies, translocation patterns, copy-number size and CN analyses, 
+and inversion segment summaries to support interpretation and downstream filtering decisions.
+
+```{r qc-germline-distribution}
 #| echo: false
 #| results: asis
 #| fig-width: 10
 #| fig-height: 6
 
-# Look for structural variant QC plots
-struct_var_files <- list.files(data_dir, pattern = paste0(project_info$gene, "_QC.*\\.pdf$"), full.names = TRUE)
-
-if (length(struct_var_files) > 0) {
-  for (i in seq_along(struct_var_files)) {
-    pdf_path <- struct_var_files[i]
-    
-    if (file.exists(pdf_path)) {
-      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
-      png_filename <- paste0("qc_struct_var_", i, ".png")
-      png::writePNG(img, png_filename)
-      
-      cat('![](', png_filename, '){width="100%"}\n\n', sep = "")
-    }
-  }
-} else {
-  cat("⚠️ Structural variant QC plots not found.\n")
-}
+# Display germline plots in specific order: frequency, translocations, copy number, inversions
+display_plots_by_pattern(data_dir, "QC", project_info$gene, "germline", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
 ```
 
-**_Figure 1-N:_** *Distribution of structural variants (CNVs and SVs) showing germline vs somatic classifications, size distributions, 
-and frequency patterns across the {{GENE_NAME}} gene region.*
+### 2. Participant Metadata Analysis
 
-## 2. Participant Metadata Analysis
-
-This section presents the demographic and clinical characteristics of participants with structural variants in {{GENE_NAME}}, 
-providing crucial context for variant interpretation and population analysis.
-
-```{r qc-participant-metadata}
+```{r qc-germline-metadata}
 #| echo: false
 #| results: asis
 #| fig-width: 10
 #| fig-height: 6
 
-# Look for the specific QC participant metadata file
-metadata_file <- paste0(project_info$gene, "_QC_StructVar_PartMetadata_Barplots.pdf")
-pdf_path <- file.path(data_dir, metadata_file)
-
-if (file.exists(pdf_path)) {
-  # Convert PDF to PNG and display
-  img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
-  png_filename <- "qc_metadata_main.png"
-  png::writePNG(img, png_filename)
-  
-  # Display the image
-  cat('![](', png_filename, '){width="100%"}\n\n', sep = "")
-  
-} else {
-  cat("⚠️ Participant metadata plot not found:", metadata_file, "\n")
-}
+display_metadata_plots(data_dir, "QC", project_info$gene, "germline")
 ```
 
-**_Figure 2:_** *Distribution of participants by demographic and clinical characteristics, including age, sex, 
-disease categories, and other relevant metadata for individuals carrying {{GENE_NAME}} structural variants.*
+## Somatic Variants
+
+### 1. Structural Variant Distribution and Classification
+
+```{r qc-somatic-distribution}
+#| echo: false  
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_plots_by_pattern(data_dir, "QC", project_info$gene, "somatic", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+### 2. Participant Metadata Analysis
+
+```{r qc-somatic-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_metadata_plots(data_dir, "QC", project_info$gene, "somatic")
+```
 
 ---
 
 # Filtering Analysis
 
-## 3. Basic Filtering
+This section presents the results of filtering analysis applied to structural variants, organized by variant classification 
+to provide comprehensive insights into germline and somatic variant patterns after quality control filtering.
 
-This section presents the results of basic filtering applied to the structural variants dataset. Basic filtering includes 
+## Basic Filtering
+
+This subsection presents the results of basic filtering applied to the structural variants dataset. Basic filtering includes 
 standard quality thresholds, frequency cutoffs, and classification criteria for CNVs and SVs.
 
-### 3.1 Basic Filtering Statistics
+### Basic Filtering Statistics
 
 ```{r basic-filter-stats-table}
 #| echo: false
@@ -202,62 +320,55 @@ if (length(basic_stats_files) > 0) {
 
 **_Table 1:_** *Progressive filtering statistics showing the impact of each filtering step on structural variant and participant counts.*
 
-### 3.2 Variant Filter QC
+### Germline Basic Filtered Variants
 
-```{r basic-filter-variant-plots}
+#### 1. Structural Variant Distribution and Classification
+
+```{r basic-filter-germline-distribution}
 #| echo: false
 #| results: asis
 #| fig-width: 10
-#| fig-height: 8
+#| fig-height: 6
 
-# Look for basic filtering plots
-basic_filter_plot_files <- list.files(data_dir, pattern = ".*struct_variants_filter_basic.*\\.pdf$", full.names = TRUE)
-basic_filter_plot_files <- basic_filter_plot_files[!grepl("PartMetadata", basic_filter_plot_files)]
-
-if (length(basic_filter_plot_files) > 0) {
-  for (plot_idx in seq_along(basic_filter_plot_files)) {
-    pdf_path <- basic_filter_plot_files[plot_idx]
-    
-    if (file.exists(pdf_path)) {
-      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
-      png_filename <- paste0("basic_filter_variant_plot_", plot_idx, ".png")
-      png::writePNG(img, png_filename)
-      
-      cat('![](', png_filename, '){width="100%"}\n\n', sep = "")
-    }
-  }
-} else {
-  cat("ℹ️ No basic filtering variant plot files found.\n")
-}
+display_plots_by_pattern(data_dir, "structural_variants_filter_basic", project_info$gene, "germline", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
 ```
 
-**_Figure 3-N:_** *Structural variant distribution visualizations after basic filtering, showing CNV and SV patterns, 
-germline versus somatic distributions, and size characteristics for high-quality variants in {{GENE_NAME}}.*
+#### 2. Participant Metadata Analysis
 
-### 3.3 Participant Metadata
-
-```{r basic-filter-participant-metadata}
+```{r basic-filter-germline-metadata}
 #| echo: false
 #| results: asis
+#| fig-width: 10
+#| fig-height: 6
 
-# Look for basic filtering metadata plots
-metadata_file <- paste0(project_info$gene, "_struct_variants_filter_basic_PartMetadata_Barplots.pdf")
-pdf_path <- file.path(data_dir, metadata_file)
-
-if (file.exists(pdf_path)) {
-  img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
-  png_filename <- "basic_metadata_main.png"
-  png::writePNG(img, png_filename)
-  
-  cat('![](', png_filename, '){width="100%"}\n\n', sep = "")
-} else {
-  cat("Participant metadata plots not found for basic filtering.\n")
-}
+display_metadata_plots(data_dir, "structural_variants_filter_basic", project_info$gene, "germline")
 ```
 
-**_Figure 4:_** *Distribution of participants carrying basic-filtered structural variants by demographic and clinical characteristics.*
+### Somatic Basic Filtered Variants
 
-### 3.4 Filtered Variants Table
+#### 1. Structural Variant Distribution and Classification
+
+```{r basic-filter-somatic-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_basic", project_info$gene, "somatic", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r basic-filter-somatic-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_metadata_plots(data_dir, "structural_variants_filter_basic", project_info$gene, "somatic")
+```
+
+### Filtered Variants Table
 
 ```{r basic-filtered-variants-table}
 #| echo: false
@@ -290,7 +401,7 @@ if (length(basic_filtered_files) > 0) {
     dt_table <- basic_filtered_data %>%
       select(any_of(available_cols)) %>%
       datatable(
-        caption = paste("Basic Filtered Structural Variants for", project_info$gene),
+        caption = paste("Basic Filtered Structural Variants (Combined Germline and Somatic) for", project_info$gene),
         filter = 'top',
         extensions = c('Buttons'),
         options = list(
@@ -333,12 +444,10 @@ if (length(basic_filtered_files) > 0) {
 }
 ```
 
-**_Table 2:_** *Interactive table of structural variants that passed basic filtering criteria for {{GENE_NAME}}. 
-Use the search and filter features to explore specific variants of interest.*
+**_Table 2:_** *Interactive table of structural variants (combined germline and somatic) that passed basic filtering criteria for {{GENE_NAME}}. 
+Use the search and filter features to explore specific variants of interest. Note: Tables typically contain both germline and somatic variants combined.*
 
 ---
-
-## 4. Custom Filtering Results
 
 ```{r custom-filters-detection}
 #| echo: false
@@ -365,142 +474,157 @@ if (length(custom_filter_names) > 0) {
   for (filter_name in custom_filter_names) {
     # Clean filter name for display
     filter_display <- str_replace_all(filter_name, "_", " ") %>% str_to_title()
+    filter_name_clean <- str_replace_all(filter_name, "filter_", "")
     
     # Main filter section
-    cat('\n### 4.', match(filter_name, custom_filter_names), ' ', filter_display, '\n\n', sep = "")
+    cat('\n## ', str_to_title(filter_display), ' Filtering\n\n', sep = "")
+    cat('This subsection presents the results of ', tolower(filter_display), ' applied to the structural variants dataset.\n\n', sep = "")
     
     # Statistics subsection
-    cat('\n#### 4.', match(filter_name, custom_filter_names), '.1 ', filter_display, ' Statistics\n\n', sep = "")
+    cat('\n### ', str_to_title(filter_display), ' Statistics\n\n', sep = "")
     
     # Stats table for this custom filter
     custom_stats_file <- list.files(data_dir, pattern = paste0(".*", filter_name, "_stats\\.csv$"), full.names = TRUE)
     
     if (length(custom_stats_file) > 0) {
-      custom_stats <- read_csv(custom_stats_file[1], show_col_types = FALSE)
-      
-      if (nrow(custom_stats) > 0) {
-        stats_table <- custom_stats %>%
-          filter(grepl(paste0(filter_name, "_after_custom_filtering"), metric)) %>%
-          mutate(
-            metric = paste("Final", filter_display, "Structural Variants")
-          ) %>%
-          gt() %>%
-          tab_header(
-            title = paste(filter_display, "Filtering Statistics"),
-            subtitle = paste("Custom filtering results for", project_info$gene)
-          ) %>%
-          cols_label(
-            metric = "Filtering Step",
-            variant_count = "Variant Count", 
-            participant_count = "Participant Count"
-          ) %>%
-          fmt_number(
-            columns = c(variant_count, participant_count),
-            decimals = 0
-          )
-        
-        print(stats_table)
-      }
+      cat('\n```{r custom-', filter_name_clean, '-filter-stats-table}\n')
+      cat('#| echo: false\n\n')
+      cat('custom_stats <- read_csv("', basename(custom_stats_file[1]), '", show_col_types = FALSE)\n', sep = "")
+      cat('\nif (nrow(custom_stats) > 0) {\n')
+      cat('  stats_table <- custom_stats %>%\n')
+      cat('    filter(grepl("', filter_name, '_after_custom_filtering", metric)) %>%\n', sep = "")
+      cat('    mutate(\n')
+      cat('      metric = paste("Final', str_to_title(filter_display), 'Structural Variants")\n')
+      cat('    ) %>%\n')
+      cat('    gt() %>%\n')
+      cat('    tab_header(\n')
+      cat('      title = paste("', str_to_title(filter_display), 'Filtering Statistics"),\n', sep = "")
+      cat('      subtitle = paste("Custom filtering results for", project_info$gene)\n')
+      cat('    ) %>%\n')
+      cat('    cols_label(\n')
+      cat('      metric = "Filtering Step",\n')
+      cat('      variant_count = "Variant Count",\n')
+      cat('      participant_count = "Participant Count"\n')
+      cat('    ) %>%\n')
+      cat('    fmt_number(\n')
+      cat('      columns = c(variant_count, participant_count),\n')
+      cat('      decimals = 0\n')
+      cat('    )\n')
+      cat('  \n')
+      cat('  print(stats_table)\n')
+      cat('} else {\n')
+      cat('  cat("No ', tolower(filter_display), ' filtering statistics data available.")\n', sep = "")
+      cat('}\n')
+      cat('```\n\n')
     }
     
-    cat('\n**_Table ', 2 + match(filter_name, custom_filter_names), ':_** ', filter_display, ' filtering statistics for structural variants.\n\n', sep = "")
+    cat('**_Table:_** *', str_to_title(filter_display), ' filtering statistics for structural variants.*\n\n', sep = "")
     
-    # Variant Filter QC subsection
-    cat('\n#### 4.', match(filter_name, custom_filter_names), '.2 Variant Filter QC\n\n', sep = "")
+    # Germline Custom Filtered Variants section
+    cat('\n### Germline ', str_to_title(filter_display), ' Filtered Variants\n\n', sep = "")
+    cat('\n#### 1. Structural Variant Distribution and Classification\n\n')
     
-    custom_plot_files <- list.files(data_dir, pattern = paste0(".*struct_variants_", filter_name, ".*\\.pdf$"), full.names = TRUE)
-    variant_plot_files <- custom_plot_files[!grepl("PartMetadata", custom_plot_files)]
+    cat('\n```{r custom-', filter_name_clean, '-germline-distribution}\n', sep = "")
+    cat('#| echo: false\n')
+    cat('#| results: asis\n')
+    cat('#| fig-width: 10\n')
+    cat('#| fig-height: 6\n\n')
+    # Display plots directly without generating titles
+    cat('display_plots_by_pattern(data_dir, "', filter_name, '", project_info$gene, "germline", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))\n', sep = "")
+    cat('```\n\n')
     
-    if (length(variant_plot_files) > 0) {
-      for (pdf_path in variant_plot_files) {
-        if (file.exists(pdf_path)) {
-          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
-          png_filename <- paste0("custom_", filter_name, "_variant_plot_", which(variant_plot_files == pdf_path), ".png")
-          png::writePNG(img, png_filename)
-          
-          cat('![](', png_filename, '){width="100%"}\n\n', sep = "")
-        }
-      }
-      
-      cat('\n**_Figure ', 4 + match(filter_name, custom_filter_names), ':_** *Structural variant distribution after ', filter_display, ' for {{GENE_NAME}}.*\n\n', sep = "")
-    } else {
-      cat('\nNo variant QC plots found for ', filter_display, '.\n\n', sep = "")
-    }
+    cat('\n#### 2. Participant Metadata Analysis\n\n')
+    cat('\n```{r custom-', filter_name_clean, '-germline-metadata}\n', sep = "")
+    cat('#| echo: false\n')
+    cat('#| results: asis\n')
+    cat('#| fig-width: 10\n')
+    cat('#| fig-height: 6\n\n')
+    # Display plots directly without generating titles
+    cat('display_metadata_plots(data_dir, "', filter_name, '", project_info$gene, "germline")\n', sep = "")
+    cat('```\n\n')
     
-    # Participant Metadata subsection
-    cat('\n#### 4.', match(filter_name, custom_filter_names), '.3 Participant Metadata\n\n', sep = "")
+    # Somatic Custom Filtered Variants section
+    cat('\n### Somatic ', str_to_title(filter_display), ' Filtered Variants\n\n', sep = "")
+    cat('\n#### 1. Structural Variant Distribution and Classification\n\n')
     
-    metadata_file <- paste0(project_info$gene, "_struct_variants_", filter_name, "_PartMetadata_Barplots.pdf")
-    pdf_path <- file.path(data_dir, metadata_file)
+    cat('\n```{r custom-', filter_name_clean, '-somatic-distribution}\n', sep = "")
+    cat('#| echo: false\n')
+    cat('#| results: asis\n')
+    cat('#| fig-width: 10\n')
+    cat('#| fig-height: 6\n\n')
+    # Display plots directly without generating titles
+    cat('display_plots_by_pattern(data_dir, "', filter_name, '", project_info$gene, "somatic", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))\n', sep = "")
+    cat('```\n\n')
     
-    if (file.exists(pdf_path)) {
-      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
-      png_filename <- paste0("custom_", filter_name, "_metadata_main.png")
-      png::writePNG(img, png_filename)
-      
-      cat('![](', png_filename, '){width="100%"}\n\n', sep = "")
-      
-      cat('\n**_Figure ', 4 + length(custom_filter_names) + match(filter_name, custom_filter_names), ':_** *Participant distribution after ', filter_display, ' structural variant filtering.*\n\n', sep = "")
-    } else {
-      cat('\nNo participant metadata plots found for ', filter_display, '.\n\n', sep = "")
-    }
+    cat('\n#### 2. Participant Metadata Analysis\n\n')
+    cat('\n```{r custom-', filter_name_clean, '-somatic-metadata}\n', sep = "")
+    cat('#| echo: false\n')
+    cat('#| results: asis\n')
+    cat('#| fig-width: 10\n')
+    cat('#| fig-height: 6\n\n')
+    # Display plots directly without generating titles
+    cat('display_metadata_plots(data_dir, "', filter_name, '", project_info$gene, "somatic")\n', sep = "")
+    cat('```\n\n')
     
     # Filtered Variants Table subsection
-    cat('\n#### 4.', match(filter_name, custom_filter_names), '.4 Filtered Variants Table\n\n', sep = "")
+    cat('\n### Filtered Variants Table\n\n')
     
-    custom_filtered_files <- list.files(data_dir, pattern = paste0(".*", filter_name, "_filtered\\.rds$"), full.names = TRUE)
+    cat('\n```{r custom-', filter_name_clean, '-filtered-variants-table}\n', sep = "")
+    cat('#| echo: false\n\n')
+    cat('custom_filtered_files <- list.files(data_dir, pattern = ".*', filter_name, '_filtered\\\\.rds$", full.names = TRUE)\n', sep = "")
+    cat('\n')
+    cat('if (length(custom_filtered_files) > 0) {\n')
+    cat('  custom_filtered_data <- readRDS(custom_filtered_files[1])\n')
+    cat('  \n')
+    cat('  if (is.data.frame(custom_filtered_data) && nrow(custom_filtered_data) > 0) {\n')
+    cat('    display_cols <- c(\n')
+    cat('      "LabelVarPlot", "CHR_variant", "START_variant", "END_variant",\n')
+    cat('      "SVTYPE_variant", "SVLEN_variant", "Classification_variant",\n')
+    cat('      "MAX_AF_annotation", "NS_variant"\n')
+    cat('    )\n')
+    cat('    \n')
+    cat('    available_cols <- intersect(display_cols, names(custom_filtered_data))\n')
+    cat('    \n')
+    cat('    dt_table <- custom_filtered_data %>%\n')
+    cat('      select(any_of(available_cols)) %>%\n')
+    cat('      datatable(\n')
+    cat('        caption = paste("', str_to_title(filter_display), ' Filtered Structural Variants (Combined Germline and Somatic) for", project_info$gene),\n', sep = "")
+    cat('        filter = "top",\n')
+    cat('        extensions = c("Buttons"),\n')
+    cat('        options = list(\n')
+    cat('          pageLength = 10,\n')
+    cat('          scrollX = TRUE,\n')
+    cat('          autoWidth = TRUE,\n')
+    cat('          columnDefs = list(\n')
+    cat('            list(className = "dt-center", targets = "_all")\n')
+    cat('          ),\n')
+    cat('          dom = "Bfrtip",\n')
+    cat('          buttons = list(\n')
+    cat('            "copy",\n')
+    cat('            list(extend = "csv", filename = paste0(project_info$gene, "_', filter_name_clean, '_filtered_struct_variants")),\n', sep = "")
+    cat('            list(extend = "excel", filename = paste0(project_info$gene, "_', filter_name_clean, '_filtered_struct_variants")),\n', sep = "")
+    cat('            list(extend = "pdf", filename = paste0(project_info$gene, "_', filter_name_clean, '_filtered_struct_variants"))\n', sep = "")
+    cat('          )\n')
+    cat('        ),\n')
+    cat('        rownames = FALSE,\n')
+    cat('        class = "cell-border stripe hover"\n')
+    cat('      )\n')
+    cat('    \n')
+    cat('    if ("SVTYPE_variant" %in% available_cols) {\n')
+    cat('      dt_table <- dt_table %>%\n')
+    cat('        formatStyle("SVTYPE_variant", backgroundColor = styleEqual(c("DEL", "DUP", "INS", "INV", "BND", "CNV"), c("#ffcccc", "#ccffcc", "#ffffcc", "#ccccff", "#ffccff", "#e6e6e6")))\n')
+    cat('    }\n')
+    cat('    \n')
+    cat('    dt_table\n')
+    cat('  } else {\n')
+    cat('    cat("No ', tolower(filter_display), ' filtered structural variants available.")\n', sep = "")
+    cat('  }\n')
+    cat('} else {\n')
+    cat('  cat("No filtered structural variants table found for ', tolower(filter_display), '.")\n', sep = "")
+    cat('}\n')
+    cat('```\n\n')
     
-    if (length(custom_filtered_files) > 0) {
-      custom_filtered_data <- readRDS(custom_filtered_files[1])
-      
-      if (is.data.frame(custom_filtered_data) && nrow(custom_filtered_data) > 0) {
-        display_cols <- c(
-          "LabelVarPlot", "CHR_variant", "START_variant", "END_variant", 
-          "SVTYPE_variant", "SVLEN_variant", "Classification_variant", 
-          "MAX_AF_annotation", "NS_variant"
-        )
-        
-        available_cols <- intersect(display_cols, names(custom_filtered_data))
-        
-        dt_table <- custom_filtered_data %>%
-          select(any_of(available_cols)) %>%
-          datatable(
-            caption = paste(filter_display, "Filtered Structural Variants for", project_info$gene),
-            filter = "top",
-            extensions = c('Buttons'),
-            options = list(
-              pageLength = 10, 
-              scrollX = TRUE, 
-              autoWidth = TRUE,
-              columnDefs = list(
-                list(className = 'dt-center', targets = '_all')
-              ),
-              dom = 'Bfrtip',
-              buttons = list(
-                'copy',
-                list(extend = 'csv', filename = paste0(project_info$gene, '_', filter_name, '_filtered_struct_variants')),
-                list(extend = 'excel', filename = paste0(project_info$gene, '_', filter_name, '_filtered_struct_variants')),
-                list(extend = 'pdf', filename = paste0(project_info$gene, '_', filter_name, '_filtered_struct_variants'))
-              )
-            ),
-            rownames = FALSE,
-            class = "cell-border stripe hover"
-          )
-        
-        if ("SVTYPE_variant" %in% available_cols) {
-          dt_table <- dt_table %>%
-            formatStyle("SVTYPE_variant", backgroundColor = styleEqual(c("DEL", "DUP", "INS", "INV", "BND", "CNV"), c("#ffcccc", "#ccffcc", "#ffffcc", "#ccccff", "#ffccff", "#e6e6e6")))
-        }
-        
-        print(htmltools::tagList(dt_table))
-        
-        cat('\n\n**_Table ', 2 + length(custom_filter_names) + match(filter_name, custom_filter_names), ':_** *Interactive table of structural variants that passed ', filter_display, ' for {{GENE_NAME}}.*\n\n', sep = "")
-      } else {
-        cat("\nNo", filter_display, "filtered structural variants available.\n\n")
-      }
-    } else {
-      cat("\nNo filtered structural variants table found for ", filter_display, ".\n\n", sep = "")
-    }
+    cat('**_Table:_** *Interactive table of structural variants (combined germline and somatic) that passed ', tolower(filter_display), ' for {{GENE_NAME}}. Note: Tables typically contain both germline and somatic variants combined.*\n\n', sep = "")
     
     cat('\n---\n\n')
   }
