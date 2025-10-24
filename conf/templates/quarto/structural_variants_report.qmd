@@ -377,6 +377,10 @@ display_metadata_plots(data_dir, "structural_variants_filter_basic", project_inf
 
 # Load basic filtered variants for interactive table
 basic_filtered_files <- list.files(data_dir, pattern = "*_struct_variants_filter_basic_filtered\\.rds$", full.names = TRUE)
+# Fallback: if not found in data/, look in current directory  
+if (length(basic_filtered_files) == 0) {
+  basic_filtered_files <- list.files(".", pattern = "*_struct_variants_filter_basic_filtered\\.rds$", full.names = TRUE)
+}
 
 if (length(basic_filtered_files) > 0) {
   basic_filtered_data <- map_dfr(basic_filtered_files, ~{
@@ -574,6 +578,9 @@ if (length(custom_filter_names) > 0) {
     cat('\n```{r custom-', filter_name_clean, '-filtered-variants-table}\n', sep = "")
     cat('#| echo: false\n\n')
     cat('custom_filtered_files <- list.files(data_dir, pattern = ".*', filter_name, '_filtered\\\\.rds$", full.names = TRUE)\n', sep = "")
+    cat('if (length(custom_filtered_files) == 0) {\n')
+    cat('  custom_filtered_files <- list.files(".", pattern = ".*', filter_name, '_filtered\\\\.rds$", full.names = TRUE)\n', sep = "")
+    cat('}\n')
     cat('\n')
     cat('if (length(custom_filtered_files) > 0) {\n')
     cat('  custom_filtered_data <- readRDS(custom_filtered_files[1])\n')
