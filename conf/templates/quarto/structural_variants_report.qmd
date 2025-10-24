@@ -17,6 +17,11 @@ format:
     keep-md: false
     fig-width: 10
     fig-height: 6
+lightbox:
+  match: auto
+  effect: zoom
+  desc-position: bottom
+  loop: true
 execute:
   echo: false
   warning: false
@@ -96,7 +101,7 @@ display_plots_by_pattern <- function(data_dir, pattern_base, gene_name, var_type
   invisible(displayed_plots)
 }
 
-# Function to display participant metadata plots with simple lightbox gallery
+# Function to display participant metadata plots using simple Quarto lightbox like small_variants_report.qmd
 display_metadata_plots <- function(data_dir, pattern_base, gene_name, var_type) {
   # Search for all PartMetadata files matching the pattern automatically
   search_pattern <- paste0(gene_name, "_", pattern_base, "_", var_type, "_PartMetadata_.*\\.pdf$")
@@ -116,54 +121,11 @@ display_metadata_plots <- function(data_dir, pattern_base, gene_name, var_type) 
       metadata_files <- c(all_struct_file, other_files)
     }
     
-    # Generate unique gallery ID
-    gallery_id <- paste0("gallery-", tolower(var_type), "-", gsub("[^a-zA-Z0-9]", "", pattern_base))
+    # Generate unique lightbox group for this section
+    lightbox_group <- paste0(tolower(var_type), "-", gsub("[^a-zA-Z0-9]", "", pattern_base), "-metadata-gallery")
     
-    # Add simple lightbox CSS and JavaScript (only once per document)
-    if (!exists("lightbox_added", envir = .GlobalEnv)) {
-      cat('\n<style>\n')
-      cat('.metadata-gallery { margin: 30px 0; text-align: center; }\n')
-      cat('.metadata-thumbnail { cursor: pointer; border: 1px solid #dee2e6; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }\n')
-      cat('.metadata-thumbnail:hover { box-shadow: 0 4px 8px rgba(0,0,0,0.2); }\n')
-      cat('.simple-lightbox { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9); }\n')
-      cat('.simple-lightbox img { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); max-width: 90%; max-height: 90%; object-fit: contain; }\n')
-      cat('.simple-close { position: absolute; top: 20px; right: 35px; color: white; font-size: 40px; cursor: pointer; z-index: 1001; }\n')
-      cat('.simple-nav { position: absolute; top: 50%; transform: translateY(-50%); color: white; font-size: 35px; cursor: pointer; z-index: 1001; user-select: none; }\n')
-      cat('.simple-prev { left: 30px; }\n')
-      cat('.simple-next { right: 30px; }\n')
-      cat('.simple-counter { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; font-size: 16px; z-index: 1001; }\n')
-      cat('</style>\n\n')
-      
-      cat('<script>\n')
-      cat('function showMetadata(galleryId, index) {\n')
-      cat('  const lightbox = document.getElementById("lightbox-" + galleryId);\n')
-      cat('  const images = lightbox.dataset.images.split("|");\n')  # Changed delimiter from "," to "|"
-      cat('  const img = document.getElementById("img-" + galleryId);\n')
-      cat('  const counter = document.getElementById("counter-" + galleryId);\n')
-      cat('  lightbox.dataset.current = index;\n')
-      cat('  img.src = images[index];\n')
-      cat('  if (counter) counter.textContent = (index + 1) + " / " + images.length;\n')
-      cat('  lightbox.style.display = "block";\n')
-      cat('}\n')
-      cat('function hideMetadata(galleryId) {\n')
-      cat('  document.getElementById("lightbox-" + galleryId).style.display = "none";\n')
-      cat('}\n')
-      cat('function nextMetadata(galleryId, direction) {\n')
-      cat('  const lightbox = document.getElementById("lightbox-" + galleryId);\n')
-      cat('  const images = lightbox.dataset.images.split("|");\n')  # Changed delimiter
-      cat('  let current = parseInt(lightbox.dataset.current) + direction;\n')
-      cat('  if (current < 0) current = images.length - 1;\n')
-      cat('  if (current >= images.length) current = 0;\n')
-      cat('  showMetadata(galleryId, current);\n')
-      cat('}\n')
-      cat('</script>\n\n')
-      
-      assign("lightbox_added", TRUE, envir = .GlobalEnv)
-    }
-    
-    # Convert all PDFs to PNG with ABSOLUTE timestamps to avoid conflicts
+    # Convert all PDFs to PNG with simple names (no timestamps)
     png_files <- c()
-    timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
     
     for (i in seq_along(metadata_files)) {
       pdf_path <- metadata_files[i]
@@ -171,8 +133,9 @@ display_metadata_plots <- function(data_dir, pattern_base, gene_name, var_type) 
       if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
         tryCatch({
           img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
-          # Use unique filenames with timestamp and gallery ID to prevent conflicts
-          png_filename <- paste0(tolower(var_type), "_", gallery_id, "_", timestamp, "_", i, ".png")
+          # Simple filename based on PDF name without timestamps
+          pdf_basename <- tools::file_path_sans_ext(basename(pdf_path))
+          png_filename <- paste0(pdf_basename, ".png")
           png::writePNG(img, png_filename)
           png_files <- c(png_files, png_filename)
           displayed_plots <- displayed_plots + 1
@@ -183,34 +146,27 @@ display_metadata_plots <- function(data_dir, pattern_base, gene_name, var_type) 
     }
     
     if (length(png_files) > 0) {
-      # Create the images list with pipe delimiter (safer than comma)
-      images_list <- paste(png_files, collapse = "|")
+      # Display ONLY the first image (main one), rest accessible via lightbox
+      pdf_path <- metadata_files[1]
+      pdf_name <- basename(pdf_path)
       
-      # Display the main thumbnail (first image)
-      cat('\n<div class="metadata-gallery">\n')
-      cat('  <img src="', png_files[1], '" class="metadata-thumbnail" style="width:90%; height:auto;" alt="Participant Metadata" onclick="showMetadata(\'', gallery_id, '\', 0)" />\n', sep = "")
+      # Show first image with lightbox group
+      cat('![](', png_files[1], '){group="', lightbox_group, '" width="100%"}\n\n', sep = "")
       
-      # Show gallery info if multiple images
+      # Process remaining PDFs but DON'T display them (only for lightbox)
       if (length(png_files) > 1) {
-        cat('  <p style="margin-top: 10px; color: #666; font-size: 14px;">📊 <em>Click to view ', length(png_files), ' metadata plots</em></p>\n')
+        for (png_idx in 2:length(png_files)) {
+          png_filename <- png_files[png_idx]
+          
+          # Add to lightbox group but hide from main view (without label)
+          cat('![](', png_filename, '){group="', lightbox_group, '" style="display:none;"}\n\n', sep = "")
+        }
       }
-      cat('</div>\n\n')
-      
-      # Create simple lightbox with corrected structure
-      cat('<div id="lightbox-', gallery_id, '" class="simple-lightbox" data-images="', images_list, '" data-current="0">\n', sep = "")
-      cat('  <span class="simple-close" onclick="hideMetadata(\'', gallery_id, '\')">&times;</span>\n', sep = "")
-      if (length(png_files) > 1) {
-        cat('  <span class="simple-nav simple-prev" onclick="event.stopPropagation(); nextMetadata(\'', gallery_id, '\', -1);">❮</span>\n', sep = "")
-        cat('  <span class="simple-nav simple-next" onclick="event.stopPropagation(); nextMetadata(\'', gallery_id, '\', 1);">❯</span>\n', sep = "")
-        cat('  <div id="counter-', gallery_id, '" class="simple-counter">1 / ', length(png_files), '</div>\n', sep = "")
-      }
-      cat('  <img id="img-', gallery_id, '" src="" alt="Metadata Plot" onclick="event.stopPropagation();" />\n', sep = "")
-      cat('</div>\n\n')
       
       # Add caption
       cat('**_Figure:_** *', str_to_title(var_type), ' participant metadata analysis for {{GENE_NAME}}', sep = "")
       if (length(png_files) > 1) {
-        cat(' (', length(png_files), ' plots available)', sep = "")
+        cat('. Click the image to view additional metadata plots (', length(png_files), ' plots available) in the gallery', sep = "")
       }
       cat('.*\n\n')
     }
