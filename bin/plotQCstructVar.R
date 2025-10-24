@@ -30,6 +30,7 @@ library(tidyverse)
 library(ggplot2)
 library(circlize)
 library(paletteer)
+library(grid)
 
 
 # Settings ----------------------------------------------------------------------
@@ -185,35 +186,25 @@ for (variant_orig in unique(variants_table$variant_origin)) {
 }
 
 # Metadata Distribution Plots ------------------------------------------------
-# Function to generate metadata plots for structural variants by variant origin (germline/somatic)
-generate_metadata_plots <- function(variants_data, gene, variant_orig, metadata_info) {
-  cat("Processing metadata for", variant_orig, "structural variants:", nrow(variants_data), "variants...\n")
-  
-  # Extract all samples from the variants
-  # For structural variants, samples are in SAMPLE column
-  if (!"SAMPLE" %in% colnames(variants_data)) {
-    cat("Warning: SAMPLE column not found in structural variants data. Skipping metadata plots.\n")
-    return()
+# Function to create metadata plots for structural variants (adapted from plotFilteredStructVar.R)
+create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, variant_orig, gene) {
+  if (nrow(variant_data) == 0) {
+    cat("No data available for", title_suffix, "\n")
+    return(NULL)
   }
-
-  all_samples <- variants_data %>%
+  
+  cat("Processing metadata for", nrow(variant_data), title_suffix, "variants...\n")
+  
+  # Extract all unique samples from the SAMPLE column
+  all_samples <- variant_data %>%
     pull(SAMPLE) %>%
-    paste(collapse = ",") %>%
-    strsplit(",") %>%
-    unlist() %>%
     unique() %>%
-    trimws() %>%
-    .[. != "" & !is.na(.)]
+    .[!is.na(.) & . != ""]
   
-  cat("Found", length(all_samples), "unique samples with", variant_orig, "structural variants\n")
-  
-  if (length(all_samples) == 0) {
-    cat("No samples found for", variant_orig, "variants. Skipping metadata plots.\n")
-    return()
-  }
+  cat("Found", length(all_samples), "unique samples with", title_suffix, "variants\n")
   
   # Match samples to participant metadata and ensure unique participants
-  filtered_metadata <- metadata_info %>%
+  variant_metadata <- metadata_info %>%
     filter(plate_key %in% all_samples) %>%
     distinct(participant_id, .keep_all = TRUE) %>%  # Keep only unique participants
     mutate(diagnosis_age = coalesce(
@@ -222,29 +213,31 @@ generate_metadata_plots <- function(variants_data, gene, variant_orig, metadata_
       )
     )
   
-  if (nrow(filtered_metadata) == 0) {
-    cat("No participant metadata found for", variant_orig, "variants. Skipping plots.\n")
-    return()
+  cat("Matched to", nrow(variant_metadata), "unique participants\n")
+  
+  if (nrow(variant_metadata) == 0) {
+    cat("No participant metadata found for", title_suffix, "variants\n")
+    return(NULL)
   }
   
   # Variables of interest for barplots
   vars_of_interest <- c("participant_type", "affection_status", "programme",
-                        "yob", "diagnosis_age", "participant_karyotyped_sex",
-                        "genetically_inferred_ancestry_thr", "normalised_disease_group", "normalised_disease_sub_group")
+                        "yob", "diagnosis_age", "participant_karyotyped_sex",  
+                        "genetically_inferred_ancestry_thr","normalised_disease_group", "normalised_disease_sub_group")
   
   # Create barplots for each variable
   plot_list <- list()
   
   for (var in vars_of_interest) {
-    if (!var %in% colnames(filtered_metadata)) {
+    if (!var %in% colnames(variant_metadata)) {
       cat("Warning: Variable", var, "not found in metadata. Skipping...\n")
       next
     }
     
     # Handle variables depending on type
-    if (is.numeric(filtered_metadata[[var]]) || var %in% c("yob", "diagnosis_age")) {
+    if (is.numeric(variant_metadata[[var]]) || var %in% c("yob", "diagnosis_age")) {
       # Create bins for numeric variables - ensure proper numeric conversion
-      df_count <- filtered_metadata %>%
+      df_count <- variant_metadata %>%
         filter(!is.na(.data[[var]]), .data[[var]] != "") %>%
         mutate(
           numeric_var = as.numeric(as.character(.data[[var]])),  # Force numeric conversion
@@ -268,22 +261,54 @@ generate_metadata_plots <- function(variants_data, gene, variant_orig, metadata_
         ) %>%
         arrange(order_value)  # Order by the numeric value instead of count
     } else {
-      # For categorical variables, count and calculate percentages
-      df_count <- filtered_metadata %>%
+      # Handle categorical variables
+      df_count <- variant_metadata %>%
         filter(!is.na(.data[[var]]), .data[[var]] != "") %>%
         count(.data[[var]]) %>%
-        rename(var_binned = 1) %>%
         mutate(
           pct = n / sum(n) * 100,
-          label = ifelse(pct < 5, "<5%", paste0(round(pct), "%"))
-        )
+          var_binned = .data[[var]],
+          order_value = NA_real_  # No ordering for categorical
+        ) %>%
+        arrange(desc(n))
+      
+      # For disease group variables, keep only top 10 and combine rest
+      if (var %in% c("normalised_disease_group", "normalised_disease_sub_group")) {
+        if (nrow(df_count) > 10) {
+          top_10 <- df_count[1:10, ]
+          rest_count <- sum(df_count[11:nrow(df_count), ]$n)
+          rest_pct <- sum(df_count[11:nrow(df_count), ]$pct)
+          
+          rest_row <- data.frame(
+            tmp = "REST, other groups or combinations",
+            n = rest_count,
+            pct = rest_pct,
+            var_binned = "REST, other groups or combinations",
+            order_value = NA_real_,
+            stringsAsFactors = FALSE
+          )
+          names(rest_row)[1] <- var
+          
+          df_count <- rbind(top_10, rest_row)
+        }
+      }
+      
+      # Add percentage labels
+      df_count <- df_count %>%
+        mutate(label = ifelse(pct < 5, "<5%", paste0(round(pct), "%")))
     }
     
-    # Skip if no data
-    if (nrow(df_count) == 0) {
-      cat("No data for variable", var, "in", variant_orig, "variants\n")
-      next
-    }
+    if (nrow(df_count) == 0) next
+    
+    # Truncate labels that are 50+ characters
+    df_count <- df_count %>%
+      mutate(
+        var_binned = ifelse(
+          nchar(as.character(var_binned)) >= 50,
+          paste0(substr(as.character(var_binned), 1, 47), "..."),
+          as.character(var_binned)
+        )
+      )
     
     # Calculate maximum label length for this variable (after truncation)
     max_label_length <- max(nchar(as.character(df_count$var_binned)), na.rm = TRUE)
@@ -309,7 +334,7 @@ generate_metadata_plots <- function(variants_data, gene, variant_orig, metadata_
         )
     } else if (var %in% c("normalised_disease_group", "normalised_disease_sub_group")) {
       # Special handling for disease group variables - REST group first, then by frequency
-      df_count <- df_count %>% 
+      df_count <- df_count %>%
         mutate(
           is_rest = var_binned == "REST, other groups or combinations",
           sort_order = ifelse(is_rest, Inf, -pct)  # REST gets highest value, others by negative pct (desc)
@@ -352,22 +377,12 @@ generate_metadata_plots <- function(variants_data, gene, variant_orig, metadata_
   plot_list <- plot_list[!sapply(plot_list, is.null)]
   
   if (length(plot_list) > 0) {
-    # Generate individual plots for each variable type (similar to structural variant types)
-    for (var_name in names(plot_list)) {
-      pdf_file <- paste0(gene, "_QC_", variant_orig, "_PartMetadata_Barplots_", toupper(var_name), ".pdf")
-      pdf(pdf_file, width = 10, height = 8)
-      print(plot_list[[var_name]]$plot)
-      dev.off()
-    }
-    
-    # Also create a combined "All" plot similar to the main structural variant plots
-    # Separate plots by label length for the combined plot
+    # Separate plots by label length
     short_label_plots <- list()
     long_label_plots <- list()
     
-    for (var_name in names(plot_list)) {
-      # Force both disease group variables to always go to long label plots
-      if (var_name %in% c("normalised_disease_group", "normalised_disease_sub_group") || plot_list[[var_name]]$max_label_length > 25) {
+    for (var_name in names(plot_list)) {  
+      if (plot_list[[var_name]]$max_label_length > 25) {
         long_label_plots[[var_name]] <- plot_list[[var_name]]$plot
       } else {
         short_label_plots[[var_name]] <- plot_list[[var_name]]$plot
@@ -375,100 +390,141 @@ generate_metadata_plots <- function(variants_data, gene, variant_orig, metadata_
     }
     
     # Create PDF with all barplots on the same page using grid functions
-    pdf_file <- paste0(gene, "_QC_", variant_orig, "_PartMetadata_Barplots_AllStructuralVar.pdf")
+    pdf_file <- paste0(gene, "_QC_", variant_orig, "_PartMetadata_Barplots_", filename_suffix, ".pdf")
     pdf(pdf_file, width = 12, height = 16)
-    
-    # Load grid library
-    library(grid)
     
     # Create a single page with both grids
     grid.newpage()
     
     # Add main title for the entire page
-    grid.text(paste0("Participant Distribution for ", gene, " ", str_to_title(variant_orig), " Structural Variants (", nrow(variants_data), " variants)"),
+    grid.text(paste0("Participant Distribution for ", gene, " (", nrow(variant_data), " ", title_suffix, " QC Variants)"),
               x = 0.5, y = 0.97, 
               gp = gpar(fontsize = 16, fontface = "bold"))
     
     # FIRST GRID: Short label variables (≤25 characters) - Upper part
     if (length(short_label_plots) > 0) {
-      # Add section title for short labels
-      grid.text(paste0("General Participant Characteristics (", nrow(filtered_metadata), ")"),
-                x = 0.5, y = 0.93,
+      # Add section title for short labels - moved up
+      grid.text(paste0("General Participant Characteristics (", nrow(variant_metadata), ")"),
+                x = 0.5, y = 0.93,  # Moved from 0.89 to 0.93
                 gp = gpar(fontsize = 14, fontface = "bold"))
       
       # Calculate grid layout (3 columns for short labels)
       n_short_plots <- length(short_label_plots)
-      n_short_cols <- min(3, n_short_plots)
-      n_short_rows <- ceiling(n_short_plots / n_short_cols)
+      ncol_short <- 3
+      nrow_short <- ceiling(n_short_plots / ncol_short)
       
-      # Define viewport for short label plots - upper portion
-      pushViewport(viewport(x = 0.5, y = 0.75, width = 0.95, height = 0.35))
+      # Define viewport dimensions for upper half - increased height
+      plot_width_short <- 1 / ncol_short
+      plot_height_short <- 0.48 / nrow_short 
       
-      # Create grid layout
-      pushViewport(viewport(layout = grid.layout(n_short_rows, n_short_cols)))
-      
-      # Plot each short label plot
+      # Create viewports and print plots for short labels
       for (i in seq_along(short_label_plots)) {
-        row <- ceiling(i / n_short_cols)
-        col <- ((i - 1) %% n_short_cols) + 1
-        pushViewport(viewport(layout.pos.row = row, layout.pos.col = col))
-        grid.draw(ggplotGrob(short_label_plots[[i]]))
-        popViewport()
+        row_idx <- ceiling(i / ncol_short)
+        col_idx <- ((i - 1) %% ncol_short) + 1
+        
+        # Calculate viewport position (upper half) - adjusted starting position
+        x_pos <- (col_idx - 0.5) * plot_width_short
+        y_pos <- 0.89 - (row_idx - 0.5) * plot_height_short 
+        
+        # Create viewport
+        vp <- viewport(x = x_pos, y = y_pos, 
+                       width = plot_width_short * 0.95, 
+                       height = plot_height_short * 0.95)
+        
+        # Print plot in viewport
+        print(short_label_plots[[i]], vp = vp)
       }
-      popViewport()
-      popViewport()
     }
     
     # SECOND GRID: Long label variables (>25 characters) - Lower part
     if (length(long_label_plots) > 0) {
-      # Add section title for long labels
-      start_y <- ifelse(length(short_label_plots) > 0, 0.48, 0.88)
-      grid.text("Disease Categories and Long Labels",
-                x = 0.5, y = start_y,
+      # Add section title for long labels - moved down
+      grid.text("Disease Group Characteristics",
+                x = 0.5, y = 0.38,  # Moved from 0.45 to 0.38
                 gp = gpar(fontsize = 14, fontface = "bold"))
       
-      # Calculate grid layout (2 columns for long labels)
+      # Calculate grid layout (2 columns for long labels to give more space)
       n_long_plots <- length(long_label_plots)
-      n_long_cols <- min(2, n_long_plots)
-      n_long_rows <- ceiling(n_long_plots / n_long_cols)
+      ncol_long <- 2
+      nrow_long <- ceiling(n_long_plots / ncol_long)
       
-      # Define viewport for long label plots - lower portion
-      viewport_y <- ifelse(length(short_label_plots) > 0, 0.25, 0.65)
-      viewport_height <- ifelse(length(short_label_plots) > 0, 0.35, 0.7)
+      # Define viewport dimensions for lower half - reduced height
+      plot_width_long <- 1 / ncol_long
+      plot_height_long <- 0.32 / nrow_long  # Reduced from 0.38 to 0.32
       
-      pushViewport(viewport(x = 0.5, y = viewport_y, width = 0.95, height = viewport_height))
-      
-      # Create grid layout
-      pushViewport(viewport(layout = grid.layout(n_long_rows, n_long_cols)))
-      
-      # Plot each long label plot
+      # Create viewports and print plots for long labels
       for (i in seq_along(long_label_plots)) {
-        row <- ceiling(i / n_long_cols)
-        col <- ((i - 1) %% n_long_cols) + 1
-        pushViewport(viewport(layout.pos.row = row, layout.pos.col = col))
-        grid.draw(ggplotGrob(long_label_plots[[i]]))
-        popViewport()
+        row_idx <- ceiling(i / ncol_long)
+        col_idx <- ((i - 1) %% ncol_long) + 1
+        
+        # Calculate viewport position (lower half) - moved down
+        x_pos <- (col_idx - 0.5) * plot_width_long
+        y_pos <- 0.34 - (row_idx - 0.5) * plot_height_long  # Moved from 0.41 to 0.34
+        
+        # Create viewport
+        vp <- viewport(x = x_pos, y = y_pos, 
+                       width = plot_width_long * 0.95, 
+                       height = plot_height_long * 0.95)
+        
+        # Print plot in viewport
+        print(long_label_plots[[i]], vp = vp)
       }
-      popViewport()
-      popViewport()
     }
     
     dev.off()
-    cat("Generated metadata plots for", variant_orig, "structural variants\n")
+    
+    cat("Generated:", pdf_file, "\n")
+    cat("Short label variables (≤25 chars):", length(short_label_plots), "\n")
+    cat("Long label variables (>25 chars):", length(long_label_plots), "\n")
+  } else {
+    cat("No valid plots generated for", title_suffix, "metadata\n")
   }
+  
+  return(variant_metadata)
 }
 
-# Generate metadata plots for both germline and somatic variants
-# Filter for germline variants
-germline_variants <- variants_table %>% filter(variant_origin  == "germline")
-if (nrow(germline_variants) > 0) {
-  generate_metadata_plots(germline_variants, gene_name, "germline", metadata_info)
-}
+# Generate metadata plots for both germline and somatic variants using new approach
+for (variant_orig in unique(variants_table$variant_origin)) {
+  # Subset the data for variant origin
+  variants_table_VarOrg <- variants_table[variants_table$variant_origin == variant_orig, ]
+  if (nrow(variants_table_VarOrg) == 0) {
+    cat("No data available for variant origin:", variant_orig, "\n")
+    next
+  }
 
-# Filter for somatic variants  
-somatic_variants <- variants_table %>% filter(variant_origin  == "somatic")
-if (nrow(somatic_variants) > 0) {
-  generate_metadata_plots(somatic_variants, gene_name, "somatic", metadata_info)
+  # Get unique structural variant types
+  sv_types <- unique(variants_table_VarOrg$INFO_SVTYPE)
+  sv_types <- sv_types[!is.na(sv_types) & sv_types != ""]
+
+  cat("Found structural variant types for", variant_orig, ":", paste(sv_types, collapse = ", "), "\n")
+
+  # Process each structural variant type separately
+  for (sv_type in sv_types) {
+    cat("\n--- Processing", sv_type, variant_orig, "variants ---\n")
+    
+    # Filter variants for this specific type
+    sv_type_variants <- variants_table_VarOrg %>% 
+      filter(INFO_SVTYPE == sv_type)
+    
+    # Create metadata plots for this SV type
+    create_metadata_plots(
+      variant_data = sv_type_variants,
+      title_suffix = sv_type,
+      filename_suffix = sv_type,
+      variant_orig = variant_orig,
+      gene = gene_name
+    )
+  }
+
+  # Create combined analysis for all structural variants
+  cat("\n--- Processing All", variant_orig, "Structural Variants ---\n")
+  create_metadata_plots(
+    variant_data = variants_table_VarOrg,
+    title_suffix = "All Structural",
+    filename_suffix = "AllStructuralVar",
+    variant_orig = variant_orig,
+    gene = gene_name
+  )
 }
 
 cat("Plots generated successfully for gene:", gene_name, "\n")
