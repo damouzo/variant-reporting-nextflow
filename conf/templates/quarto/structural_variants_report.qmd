@@ -272,7 +272,7 @@ standard quality thresholds, frequency cutoffs, and classification criteria for 
 #| echo: false
 
 # Load basic filtering statistics
-basic_stats_files <- list.files(data_dir, pattern = "*_struct_variants_filter_basic_stats\\.csv$", full.names = TRUE)
+basic_stats_files <- list.files(data_dir, pattern = "*_structural_variants_filter_basic_stats\\.csv$", full.names = TRUE)
 
 if (length(basic_stats_files) > 0) {
   basic_stats <- read_csv(basic_stats_files[1], show_col_types = FALSE)
@@ -375,73 +375,32 @@ display_metadata_plots(data_dir, "structural_variants_filter_basic", project_inf
 ```{r basic-filtered-variants-table}
 #| echo: false
 
-# Load basic filtered variants for interactive table
-basic_filtered_files <- list.files(data_dir, pattern = "*_struct_variants_filter_basic_filtered\\.rds$", full.names = TRUE)
-# Fallback: if not found in data/, look in current directory  
-if (length(basic_filtered_files) == 0) {
-  basic_filtered_files <- list.files(".", pattern = "*_struct_variants_filter_basic_filtered\\.rds$", full.names = TRUE)
-}
+# Load basic filtered variants for interactive table - using same simple approach that works
+basic_filtered_files <- list.files(data_dir, pattern = "*_structural_variants_filter_basic_filtered\\.rds$", full.names = TRUE)
 
 if (length(basic_filtered_files) > 0) {
-  basic_filtered_data <- map_dfr(basic_filtered_files, ~{
-    data <- readRDS(.x)
-    if (is.data.frame(data) && nrow(data) > 0) {
-      data
-    } else {
-      NULL 
-    }
-  })
+  # Load and display table - simple approach like custom filters
+  basic_filtered_data <- readRDS(basic_filtered_files[1])
   
-  if (!is.null(basic_filtered_data) && nrow(basic_filtered_data) > 0) {
-    # Select specific columns for display - adapt for structural variants
-    display_cols <- c(
-      "LabelVarPlot", "CHR_variant", "START_variant", "END_variant", 
-      "SVTYPE_variant", "SVLEN_variant", "Classification_variant", 
-      "MAX_AF_annotation", "NS_variant"
+  if (is.data.frame(basic_filtered_data) && nrow(basic_filtered_data) > 0) {
+    # Use only available columns from the data
+    all_cols <- names(basic_filtered_data)
+    
+    # Select first 10 most relevant columns to avoid table being too wide
+    display_cols <- head(all_cols, 10)
+    
+    # Create simple datatable - same as custom filters
+    datatable(
+      basic_filtered_data[, display_cols, drop = FALSE],
+      caption = paste("Basic Filtered Structural Variants for", project_info$gene),
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel')
+      ),
+      rownames = FALSE
     )
-    
-    # Filter to available columns
-    available_cols <- intersect(display_cols, names(basic_filtered_data))
-    
-    # Create interactive table with download buttons
-    dt_table <- basic_filtered_data %>%
-      select(any_of(available_cols)) %>%
-      datatable(
-        caption = paste("Basic Filtered Structural Variants (Combined Germline and Somatic) for", project_info$gene),
-        filter = 'top',
-        extensions = c('Buttons'),
-        options = list(
-          pageLength = 10,
-          scrollX = TRUE,
-          autoWidth = TRUE,
-          columnDefs = list(
-            list(className = 'dt-center', targets = '_all')
-          ),
-          dom = 'Bfrtip',
-          buttons = list(
-            'copy',
-            list(extend = 'csv', filename = paste0(project_info$gene, '_basic_filtered_struct_variants')),
-            list(extend = 'excel', filename = paste0(project_info$gene, '_basic_filtered_struct_variants')),
-            list(extend = 'pdf', filename = paste0(project_info$gene, '_basic_filtered_struct_variants'))
-          )
-        ),
-        rownames = FALSE,
-        class = 'cell-border stripe hover'
-      )
-    
-    # Format SVTYPE column if it exists
-    if ("SVTYPE_variant" %in% available_cols) {
-      dt_table <- dt_table %>%
-        formatStyle(
-          'SVTYPE_variant',
-          backgroundColor = styleEqual(
-            c('DEL', 'DUP', 'INS', 'INV', 'BND', 'CNV'),
-            c('#ffcccc', '#ccffcc', '#ffffcc', '#ccccff', '#ffccff', '#e6e6e6')
-          )
-        )
-    }
-    
-    dt_table
   } else {
     cat("No basic filtered structural variant data available.")
   }
@@ -455,192 +414,311 @@ Use the search and filter features to explore specific variants of interest. Not
 
 ---
 
-```{r custom-filters-detection}
+## OnlyHaem Filtering
+
+```{r check-onlyhaem-exists}
 #| echo: false
-
-# Detect custom filters by looking for non-basic filter files
-all_filter_stats <- list.files(data_dir, pattern = ".*struct_variants_filter_.*_stats\\.csv$", full.names = TRUE)
-custom_filter_stats <- all_filter_stats[!grepl("filter_basic", all_filter_stats)]
-
-# Extract unique custom filter names
-custom_filter_names <- c()
-for (file in custom_filter_stats) {
-  filter_match <- str_extract(basename(file), "filter_[^_]+")
-  if (!is.na(filter_match) && filter_match != "filter_basic") {
-    custom_filter_names <- c(custom_filter_names, filter_match)
-  }
-}
-custom_filter_names <- unique(custom_filter_names)
+onlyhaem_exists <- length(list.files(data_dir, pattern = "*_structural_variants_filter_onlyHaem_filtered\\.rds$")) > 0
 ```
 
-```{r custom-filters-sections, results='asis'}
+```{r onlyhaem-section-header}
 #| echo: false
+#| results: asis
+#| eval: !expr onlyhaem_exists
 
-if (length(custom_filter_names) > 0) {
-  for (filter_name in custom_filter_names) {
-    # Clean filter name for display
-    filter_display <- str_replace_all(filter_name, "_", " ") %>% str_to_title()
-    filter_name_clean <- str_replace_all(filter_name, "filter_", "")
-    
-    # Main filter section
-    cat('\n## ', str_to_title(filter_display), ' Filtering\n\n', sep = "")
-    cat('This subsection presents the results of ', tolower(filter_display), ' applied to the structural variants dataset.\n\n', sep = "")
-    
-    # Statistics subsection
-    cat('\n### ', str_to_title(filter_display), ' Statistics\n\n', sep = "")
-    
-    # Stats table for this custom filter
-    custom_stats_file <- list.files(data_dir, pattern = paste0(".*", filter_name, "_stats\\.csv$"), full.names = TRUE)
-    
-    if (length(custom_stats_file) > 0) {
-      cat('\n```{r custom-', filter_name_clean, '-filter-stats-table}\n')
-      cat('#| echo: false\n\n')
-      cat('custom_stats <- read_csv("', basename(custom_stats_file[1]), '", show_col_types = FALSE)\n', sep = "")
-      cat('\nif (nrow(custom_stats) > 0) {\n')
-      cat('  stats_table <- custom_stats %>%\n')
-      cat('    filter(grepl("', filter_name, '_after_custom_filtering", metric)) %>%\n', sep = "")
-      cat('    mutate(\n')
-      cat('      metric = paste("Final', str_to_title(filter_display), 'Structural Variants")\n')
-      cat('    ) %>%\n')
-      cat('    gt() %>%\n')
-      cat('    tab_header(\n')
-      cat('      title = paste("', str_to_title(filter_display), 'Filtering Statistics"),\n', sep = "")
-      cat('      subtitle = paste("Custom filtering results for", project_info$gene)\n')
-      cat('    ) %>%\n')
-      cat('    cols_label(\n')
-      cat('      metric = "Filtering Step",\n')
-      cat('      variant_count = "Variant Count",\n')
-      cat('      participant_count = "Participant Count"\n')
-      cat('    ) %>%\n')
-      cat('    fmt_number(\n')
-      cat('      columns = c(variant_count, participant_count),\n')
-      cat('      decimals = 0\n')
-      cat('    )\n')
-      cat('  \n')
-      cat('  print(stats_table)\n')
-      cat('} else {\n')
-      cat('  cat("No ', tolower(filter_display), ' filtering statistics data available.")\n', sep = "")
-      cat('}\n')
-      cat('```\n\n')
-    }
-    
-    cat('**_Table:_** *', str_to_title(filter_display), ' filtering statistics for structural variants.*\n\n', sep = "")
-    
-    # Germline Custom Filtered Variants section
-    cat('\n### Germline ', str_to_title(filter_display), ' Filtered Variants\n\n', sep = "")
-    cat('\n#### 1. Structural Variant Distribution and Classification\n\n')
-    
-    cat('\n```{r custom-', filter_name_clean, '-germline-distribution}\n', sep = "")
-    cat('#| echo: false\n')
-    cat('#| results: asis\n')
-    cat('#| fig-width: 10\n')
-    cat('#| fig-height: 6\n\n')
-    # Display plots directly without generating titles
-    cat('display_plots_by_pattern(data_dir, "', filter_name, '", project_info$gene, "germline", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))\n', sep = "")
-    cat('```\n\n')
-    
-    cat('\n#### 2. Participant Metadata Analysis\n\n')
-    cat('\n```{r custom-', filter_name_clean, '-germline-metadata}\n', sep = "")
-    cat('#| echo: false\n')
-    cat('#| results: asis\n')
-    cat('#| fig-width: 10\n')
-    cat('#| fig-height: 6\n\n')
-    # Display plots directly without generating titles
-    cat('display_metadata_plots(data_dir, "', filter_name, '", project_info$gene, "germline")\n', sep = "")
-    cat('```\n\n')
-    
-    # Somatic Custom Filtered Variants section
-    cat('\n### Somatic ', str_to_title(filter_display), ' Filtered Variants\n\n', sep = "")
-    cat('\n#### 1. Structural Variant Distribution and Classification\n\n')
-    
-    cat('\n```{r custom-', filter_name_clean, '-somatic-distribution}\n', sep = "")
-    cat('#| echo: false\n')
-    cat('#| results: asis\n')
-    cat('#| fig-width: 10\n')
-    cat('#| fig-height: 6\n\n')
-    # Display plots directly without generating titles
-    cat('display_plots_by_pattern(data_dir, "', filter_name, '", project_info$gene, "somatic", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))\n', sep = "")
-    cat('```\n\n')
-    
-    cat('\n#### 2. Participant Metadata Analysis\n\n')
-    cat('\n```{r custom-', filter_name_clean, '-somatic-metadata}\n', sep = "")
-    cat('#| echo: false\n')
-    cat('#| results: asis\n')
-    cat('#| fig-width: 10\n')
-    cat('#| fig-height: 6\n\n')
-    # Display plots directly without generating titles
-    cat('display_metadata_plots(data_dir, "', filter_name, '", project_info$gene, "somatic")\n', sep = "")
-    cat('```\n\n')
-    
-    # Filtered Variants Table subsection
-    cat('\n### Filtered Variants Table\n\n')
-    
-    cat('\n```{r custom-', filter_name_clean, '-filtered-variants-table}\n', sep = "")
-    cat('#| echo: false\n\n')
-    cat('custom_filtered_files <- list.files(data_dir, pattern = ".*', filter_name, '_filtered\\\\.rds$", full.names = TRUE)\n', sep = "")
-    cat('if (length(custom_filtered_files) == 0) {\n')
-    cat('  custom_filtered_files <- list.files(".", pattern = ".*', filter_name, '_filtered\\\\.rds$", full.names = TRUE)\n', sep = "")
-    cat('}\n')
-    cat('\n')
-    cat('if (length(custom_filtered_files) > 0) {\n')
-    cat('  custom_filtered_data <- readRDS(custom_filtered_files[1])\n')
-    cat('  \n')
-    cat('  if (is.data.frame(custom_filtered_data) && nrow(custom_filtered_data) > 0) {\n')
-    cat('    display_cols <- c(\n')
-    cat('      "LabelVarPlot", "CHR_variant", "START_variant", "END_variant",\n')
-    cat('      "SVTYPE_variant", "SVLEN_variant", "Classification_variant",\n')
-    cat('      "MAX_AF_annotation", "NS_variant"\n')
-    cat('    )\n')
-    cat('    \n')
-    cat('    available_cols <- intersect(display_cols, names(custom_filtered_data))\n')
-    cat('    \n')
-    cat('    dt_table <- custom_filtered_data %>%\n')
-    cat('      select(any_of(available_cols)) %>%\n')
-    cat('      datatable(\n')
-    cat('        caption = paste("', str_to_title(filter_display), ' Filtered Structural Variants (Combined Germline and Somatic) for", project_info$gene),\n', sep = "")
-    cat('        filter = "top",\n')
-    cat('        extensions = c("Buttons"),\n')
-    cat('        options = list(\n')
-    cat('          pageLength = 10,\n')
-    cat('          scrollX = TRUE,\n')
-    cat('          autoWidth = TRUE,\n')
-    cat('          columnDefs = list(\n')
-    cat('            list(className = "dt-center", targets = "_all")\n')
-    cat('          ),\n')
-    cat('          dom = "Bfrtip",\n')
-    cat('          buttons = list(\n')
-    cat('            "copy",\n')
-    cat('            list(extend = "csv", filename = paste0(project_info$gene, "_', filter_name_clean, '_filtered_struct_variants")),\n', sep = "")
-    cat('            list(extend = "excel", filename = paste0(project_info$gene, "_', filter_name_clean, '_filtered_struct_variants")),\n', sep = "")
-    cat('            list(extend = "pdf", filename = paste0(project_info$gene, "_', filter_name_clean, '_filtered_struct_variants"))\n', sep = "")
-    cat('          )\n')
-    cat('        ),\n')
-    cat('        rownames = FALSE,\n')
-    cat('        class = "cell-border stripe hover"\n')
-    cat('      )\n')
-    cat('    \n')
-    cat('    if ("SVTYPE_variant" %in% available_cols) {\n')
-    cat('      dt_table <- dt_table %>%\n')
-    cat('        formatStyle("SVTYPE_variant", backgroundColor = styleEqual(c("DEL", "DUP", "INS", "INV", "BND", "CNV"), c("#ffcccc", "#ccffcc", "#ffffcc", "#ccccff", "#ffccff", "#e6e6e6")))\n')
-    cat('    }\n')
-    cat('    \n')
-    cat('    dt_table\n')
-    cat('  } else {\n')
-    cat('    cat("No ', tolower(filter_display), ' filtered structural variants available.")\n', sep = "")
-    cat('  }\n')
-    cat('} else {\n')
-    cat('  cat("No filtered structural variants table found for ', tolower(filter_display), '.")\n', sep = "")
-    cat('}\n')
-    cat('```\n\n')
-    
-    cat('**_Table:_** *Interactive table of structural variants (combined germline and somatic) that passed ', tolower(filter_display), ' for {{GENE_NAME}}. Note: Tables typically contain both germline and somatic variants combined.*\n\n', sep = "")
-    
-    cat('\n---\n\n')
+if (onlyhaem_exists) {
+  cat("This subsection presents the results of OnlyHaem filtering applied to the structural variants dataset.\n\n")
+}
+```
+
+### OnlyHaem Statistics
+
+```{r onlyhaem-stats-table}
+#| echo: false
+#| eval: !expr onlyhaem_exists
+
+onlyhaem_stats_files <- list.files(data_dir, pattern = "*_structural_variants_filter_onlyHaem_stats\\.csv$", full.names = TRUE)
+
+if (length(onlyhaem_stats_files) > 0) {
+  onlyhaem_stats <- read_csv(onlyhaem_stats_files[1], show_col_types = FALSE)
+  
+  if (nrow(onlyhaem_stats) > 0) {
+    onlyhaem_stats %>%
+      filter(grepl("filter_onlyHaem_after_custom_filtering", metric)) %>%
+      mutate(
+        metric = case_when(
+          metric == "filter_onlyHaem_after_custom_filtering" ~ "Final OnlyHaem Structural Variants",
+          TRUE ~ metric
+        )
+      ) %>%
+      gt() %>%
+      tab_header(
+        title = "OnlyHaem Filtering Statistics",
+        subtitle = paste("Custom filtering results for", project_info$gene)
+      ) %>%
+      cols_label(
+        metric = "Filtering Step",
+        variant_count = "Variant Count",
+        participant_count = "Participant Count"
+      ) %>%
+      fmt_number(
+        columns = c(variant_count, participant_count),
+        decimals = 0
+      )
+  } else {
+    cat("No OnlyHaem filtering statistics data available.")
   }
 } else {
-  cat("No custom filtering has been applied to this structural variants dataset.\n\n")
+  cat("No OnlyHaem filtering statistics files found.")
 }
 ```
+
+**_Table:_** *OnlyHaem filtering statistics for structural variants.*
+
+### Germline OnlyHaem Filtered Variants
+
+#### 1. Structural Variant Distribution and Classification
+
+```{r onlyhaem-germline-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+#| eval: !expr onlyhaem_exists
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_onlyHaem", project_info$gene, "germline", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r onlyhaem-germline-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+#| eval: !expr onlyhaem_exists
+
+display_metadata_plots(data_dir, "structural_variants_filter_onlyHaem", project_info$gene, "germline")
+```
+
+### Somatic OnlyHaem Filtered Variants
+
+#### 1. Structural Variant Distribution and Classification
+
+```{r onlyhaem-somatic-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+#| eval: !expr onlyhaem_exists
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_onlyHaem", project_info$gene, "somatic", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r onlyhaem-somatic-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+#| eval: !expr onlyhaem_exists
+
+display_metadata_plots(data_dir, "structural_variants_filter_onlyHaem", project_info$gene, "somatic")
+```
+
+### OnlyHaem Filtered Variants Table
+
+```{r onlyhaem-filtered-variants-table}
+#| echo: false
+#| eval: !expr onlyhaem_exists
+
+onlyhaem_filtered_files <- list.files(data_dir, pattern = "*_structural_variants_filter_onlyHaem_filtered\\.rds$", full.names = TRUE)
+
+if (length(onlyhaem_filtered_files) > 0) {
+  # Load and display table - same simple approach that works
+  onlyhaem_data <- readRDS(onlyhaem_filtered_files[1])
+  
+  if (is.data.frame(onlyhaem_data) && nrow(onlyhaem_data) > 0) {
+    # Use only available columns from the data
+    all_cols <- names(onlyhaem_data)
+    
+    # Select first 10 most relevant columns to avoid table being too wide
+    display_cols <- head(all_cols, 10)
+    
+    # Create simple datatable
+    datatable(
+      onlyhaem_data[, display_cols, drop = FALSE],
+      caption = paste("OnlyHaem Filtered Structural Variants for", project_info$gene),
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel')
+      ),
+      rownames = FALSE
+    )
+  } else {
+    cat("No OnlyHaem filtered variants available.")
+  }
+}
+```
+
+**_Table 3:_** *Interactive table of structural variants (combined germline and somatic) that passed OnlyHaem filtering for {{GENE_NAME}}.*
+
+---
+
+## RmNeuro Filtering
+
+```{r check-rmneuro-exists}
+#| echo: false
+rmneuro_exists <- length(list.files(data_dir, pattern = "*_structural_variants_filter_rmNeuro_filtered\\.rds$")) > 0
+```
+
+```{r rmneuro-section-header}
+#| echo: false
+#| results: asis
+#| eval: !expr rmneuro_exists
+
+if (rmneuro_exists) {
+  cat("This subsection presents the results of rmNeuro filtering applied to the structural variants dataset.\n\n")
+}
+```
+
+### RmNeuro Statistics
+
+```{r rmneuro-stats-table}
+#| echo: false
+#| eval: !expr rmneuro_exists
+
+rmneuro_stats_files <- list.files(data_dir, pattern = "*_structural_variants_filter_rmNeuro_stats\\.csv$", full.names = TRUE)
+
+if (length(rmneuro_stats_files) > 0) {
+  rmneuro_stats <- read_csv(rmneuro_stats_files[1], show_col_types = FALSE)
+  
+  if (nrow(rmneuro_stats) > 0) {
+    rmneuro_stats %>%
+      filter(grepl("filter_rmNeuro_after_custom_filtering", metric)) %>%
+      mutate(
+        metric = case_when(
+          metric == "filter_rmNeuro_after_custom_filtering" ~ "Final RmNeuro Structural Variants",
+          TRUE ~ metric
+        )
+      ) %>%
+      gt() %>%
+      tab_header(
+        title = "RmNeuro Filtering Statistics",
+        subtitle = paste("Custom filtering results for", project_info$gene)
+      ) %>%
+      cols_label(
+        metric = "Filtering Step",
+        variant_count = "Variant Count",
+        participant_count = "Participant Count"
+      ) %>%
+      fmt_number(
+        columns = c(variant_count, participant_count),
+        decimals = 0
+      )
+  } else {
+    cat("No rmNeuro filtering statistics data available.")
+  }
+} else {
+  cat("No rmNeuro filtering statistics files found.")
+}
+```
+
+**_Table:_** *RmNeuro filtering statistics for structural variants.*
+
+### Germline RmNeuro Filtered Variants
+
+#### 1. Structural Variant Distribution and Classification
+
+```{r rmneuro-germline-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+#| eval: !expr rmneuro_exists
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_rmNeuro", project_info$gene, "germline", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r rmneuro-germline-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+#| eval: !expr rmneuro_exists
+
+display_metadata_plots(data_dir, "structural_variants_filter_rmNeuro", project_info$gene, "germline")
+```
+
+### Somatic RmNeuro Filtered Variants
+
+#### 1. Structural Variant Distribution and Classification
+
+```{r rmneuro-somatic-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+#| eval: !expr rmneuro_exists
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_rmNeuro", project_info$gene, "somatic", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r rmneuro-somatic-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+#| eval: !expr rmneuro_exists
+
+display_metadata_plots(data_dir, "structural_variants_filter_rmNeuro", project_info$gene, "somatic")
+```
+
+### RmNeuro Filtered Variants Table
+
+```{r rmneuro-filtered-variants-table}
+#| echo: false
+#| eval: !expr rmneuro_exists
+
+rmneuro_filtered_files <- list.files(data_dir, pattern = "*_structural_variants_filter_rmNeuro_filtered\\.rds$", full.names = TRUE)
+
+if (length(rmneuro_filtered_files) > 0) {
+  # Load and display table - same simple approach that works
+  rmneuro_data <- readRDS(rmneuro_filtered_files[1])
+  
+  if (is.data.frame(rmneuro_data) && nrow(rmneuro_data) > 0) {
+    # Use only available columns from the data
+    all_cols <- names(rmneuro_data)
+    
+    # Select first 10 most relevant columns to avoid table being too wide
+    display_cols <- head(all_cols, 10)
+    
+    # Create simple datatable
+    datatable(
+      rmneuro_data[, display_cols, drop = FALSE],
+      caption = paste("RmNeuro Filtered Structural Variants for", project_info$gene),
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel')
+      ),
+      rownames = FALSE
+    )
+  } else {
+    cat("No rmNeuro filtered variants available.")
+  }
+}
+```
+
+**_Table 4:_** *Interactive table of structural variants (combined germline and somatic) that passed rmNeuro filtering for {{GENE_NAME}}.*
 
 ---
 
