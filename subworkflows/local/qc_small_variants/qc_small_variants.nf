@@ -15,11 +15,11 @@ workflow QC_SMALL_VARIANTS {
 
     main:
     // Create versions channel
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     // Load reference annotation files
-    prot_files_ch = Channel.fromPath("${params.prot_dir}/*.gff")
-    exon_files_ch = Channel.fromPath("${params.exon_dir}/*.tsv")
+    prot_files_ch = channel.fromPath("${params.prot_dir}/*.gff")
+    exon_files_ch = channel.fromPath("${params.exon_dir}/*.tsv")
 
     // Prepare input for cleanFormatSmallVar
     clean_input_ch = small_var_ch
@@ -107,7 +107,7 @@ workflow QC_SMALL_VARIANTS {
             // out.filtered_plots: path(filtered_plot_file)
 
     // Generate Small Variants QC Report
-    template_file = Channel.fromPath("${params.templates_dir}/quarto/small_variants_report.qmd")
+    template_file = channel.fromPath("${params.templates_dir}/quarto/small_variants_report.qmd")
     
     // Prepare QC plots keyed by gene
     qc_plots_keyed = plotQCsmallVar.out.plots

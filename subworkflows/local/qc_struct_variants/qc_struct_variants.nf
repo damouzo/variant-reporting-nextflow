@@ -7,6 +7,7 @@ include { extractStructVarPartID } from '../../../modules/local/R/structVariants
 include { plotQCstructVar } from '../../../modules/local/R/structVariants/plotQCstructVar.nf'
 include { filterStructVar } from '../../../modules/local/R/structVariants/filterStructVar.nf'
 include { plotFilteredStructVar } from '../../../modules/local/R/structVariants/plotFilteredStructVar.nf'
+include { generateReport } from '../../../modules/local/quarto/generateReport.nf'
 
 workflow QC_STRUCT_VARIANTS {
     take:
@@ -15,11 +16,11 @@ workflow QC_STRUCT_VARIANTS {
 
     main:
     // Create versions channel
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     // Load reference annotation files
-    prot_files_ch = Channel.fromPath("${params.prot_dir}/*.gff")
-    exon_files_ch = Channel.fromPath("${params.exon_dir}/*.tsv")
+    prot_files_ch = channel.fromPath("${params.prot_dir}/*.gff")
+    exon_files_ch = channel.fromPath("${params.exon_dir}/*.tsv")
 
     // Prepare protein and exon files with gene_name as the key
     prot_files_with_gene_ch = prot_files_ch
@@ -36,16 +37,16 @@ workflow QC_STRUCT_VARIANTS {
 
     // Filter and prepare input channels for CNV and SV
     cnv_germline_ch = struct_var_ch
-        .filter { it.name.startsWith("CNV") && it.name.contains("germline") }
+        .filter { file -> file.name.startsWith("CNV") && file.name.contains("germline") }
     
     cnv_somatic_ch = struct_var_ch
-        .filter { it.name.startsWith("CNV") && it.name.contains("somatic") }
-    
+        .filter { file -> file.name.startsWith("CNV") && file.name.contains("somatic") }
+
     sv_germline_ch = struct_var_ch
-        .filter { it.name.startsWith("SV") && it.name.contains("germline") }
-    
+        .filter { file -> file.name.startsWith("SV") && file.name.contains("germline") }
+
     sv_somatic_ch = struct_var_ch
-        .filter { it.name.startsWith("SV") && it.name.contains("somatic") }
+        .filter { file -> file.name.startsWith("SV") && file.name.contains("somatic") }
 
     // Combine channels (germline and somatic) for CNV
     cnv_input_ch = cnv_germline_ch
@@ -145,11 +146,134 @@ workflow QC_STRUCT_VARIANTS {
     plotFilteredStructVar(plot_filter_input_ch)
             // out.filtered_plots: path(filtered_plot_file)
 
+    // Generate Structural Variants QC Report
+    template_file = channel.fromPath("${params.templates_dir}/quarto/structural_variants_report.qmd")
+    
+    // Prepare QC plots keyed by gene
+    qc_plots_keyed = plotQCstructVar.out.plots
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+
+    // Prepare filtered plots keyed by gene
+    filtered_plots_keyed = plotFilteredStructVar.out.filtered_plots
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+
+    // Prepare filtered RDS files keyed by gene (group by gene, collect all filter types)
+    filtered_rds_keyed = filterStructVar.out.filtered_clean_rds
+        .map { gene_name, _filter_type, rds_file -> tuple(gene_name, rds_file) }
+        .groupTuple()
+
+    // Prepare filtered statistics keyed by gene
+    filtered_stats_keyed = filterStructVar.out.stats_csv
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+
+    // Prepare filtered TSV files keyed by gene
+    filtered_tsv_keyed = filterStructVar.out.filtered_clean_tsv
+        .flatten()
+        .map { file -> 
+            def gene_name = file.baseName.split('_')[0]
+            tuple(gene_name, file)
+        }
+
+    // Prepare input files for the report - collect all files by gene
+    report_files_ch = cleanFormatStructVar.out.clean_rds
+        .join(
+            qc_plots_keyed
+                .groupTuple()
+                .map { gene_name, plot_files -> tuple(gene_name, plot_files) }
+        )
+        .join(
+            filtered_plots_keyed
+                .groupTuple()
+                .map { gene_name, filtered_plot_files -> tuple(gene_name, filtered_plot_files) }
+        )
+        .join(
+            filtered_stats_keyed
+                .groupTuple()
+                .map { gene_name, stats_files -> tuple(gene_name, stats_files) }
+        )
+        .join(filtered_rds_keyed)
+        .join(
+            filtered_tsv_keyed
+                .groupTuple()
+                .map { gene_name, tsv_files -> tuple(gene_name, tsv_files) }
+        )
+
+    // Add participant metadata if available
+    if (params.enable_sql_queries) {
+        // Prepare participant files keyed by gene
+        participant_txt_keyed = extractStructVarPartID.out.partID_txt
+            .flatten()
+            .map { file -> 
+                def gene_name = file.baseName.split('_')[0]
+                tuple(gene_name, file)
+            }
+
+        participant_tsv_keyed = extractStructVarPartID.out.partMet_tsv
+            .flatten()
+            .map { file -> 
+                def gene_name = file.baseName.split('_')[0]
+                tuple(gene_name, file)
+            }
+
+        participant_rds_keyed = extractStructVarPartID.out.partMet_rds
+
+        report_files_ch = report_files_ch
+            .join(
+                participant_txt_keyed
+                    .groupTuple()
+                    .map { gene_name, txt_files -> tuple(gene_name, txt_files) }
+            )
+            .join(
+                participant_tsv_keyed
+                    .groupTuple()
+                    .map { gene_name, part_tsv_files -> tuple(gene_name, part_tsv_files) }
+            )
+            .join(participant_rds_keyed)
+            .map { gene_name, clean_rds, qc_plots, filtered_plots, stats_files, filtered_rds_files, filtered_tsv_files, part_txt_files, part_tsv_files, part_met_rds ->
+                // Combine all input files for this gene
+                def input_files = [clean_rds, part_met_rds] + qc_plots + filtered_plots + stats_files + filtered_rds_files + filtered_tsv_files + part_txt_files + part_tsv_files
+                def report_type = "structural_variants_report"
+                tuple(gene_name, report_type, input_files)
+            }
+    } else {
+        report_files_ch = report_files_ch
+            .map { gene_name, clean_rds, qc_plots, filtered_plots, stats_files, filtered_rds_files, filtered_tsv_files ->
+                // Combine all input files for this gene (no participant metadata)
+                def input_files = [clean_rds] + qc_plots + filtered_plots + stats_files + filtered_rds_files + filtered_tsv_files
+                def report_type = "structural_variants_report"
+                tuple(gene_name, report_type, input_files)
+            }
+    }
+
+    report_files_ch = report_files_ch
+        .combine(template_file)
+        .map { gene_name, report_type, input_files, template ->
+            tuple(gene_name, report_type, template, input_files) 
+        }
+        
+    // Generate the Quarto report
+    generateReport(report_files_ch)
+
     // Collect versions
     ch_versions = ch_versions.mix(cleanFormatStructVar_CNV.out.versions)
     ch_versions = ch_versions.mix(cleanFormatStructVar_SV.out.versions)
     ch_versions = ch_versions.mix(cleanFormatStructVar.out.versions)
     ch_versions = ch_versions.mix(plotQCstructVar.out.versions) 
+    ch_versions = ch_versions.mix(filterStructVar.out.versions)
+    ch_versions = ch_versions.mix(plotFilteredStructVar.out.versions)
+    ch_versions = ch_versions.mix(generateReport.out.versions)
     if (params.enable_sql_queries) {
         ch_versions = ch_versions.mix(extractStructVarPartID.out.versions)
     }
@@ -157,14 +281,15 @@ workflow QC_STRUCT_VARIANTS {
     emit:
     clean_cnv_tables      = cnv_clean_ch.map { gene, file -> tuple(file, gene) } 
     clean_sv_tables       = sv_clean_ch.map { gene, file -> tuple(file, gene) }  
-    partID_txt            = params.enable_sql_queries ? extractStructVarPartID.out.partID_txt : Channel.empty()
-    partMet_tsv           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_tsv : Channel.empty()
-    partMet_rds           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_rds : Channel.empty()
+    partID_txt            = params.enable_sql_queries ? extractStructVarPartID.out.partID_txt : channel.empty()
+    partMet_tsv           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_tsv : channel.empty()
+    partMet_rds           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_rds : channel.empty()
     filtered_clean_tsv    = filterStructVar.out.filtered_clean_tsv     // File TSV (all filter types)
     filtered_clean_rds    = filterStructVar.out.filtered_clean_rds     // tuple(val(gene_name), val(filter_type), path(rds_file))
     filtered_stats_csv    = filterStructVar.out.stats_csv              // Filter statistics (all filter types)
     plot_files            = plotQCstructVar.out.plots
     filtered_plots        = plotFilteredStructVar.out.filtered_plots   // PDFs (all filter types)
+    html_reports          = generateReport.out.html_report             // HTML reports
     versions              = ch_versions
 }
 

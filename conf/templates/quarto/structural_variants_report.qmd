@@ -1,0 +1,995 @@
+---
+title: "{{PROJECT_NAME}} - Structural Variants Quality Control Report"
+subtitle: "{{GENE_NAME}} Gene Analysis"
+author: "{{PROJECT_AUTHOR}} ({{PROJECT_CODE}})"
+date: "`r Sys.Date()`"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 4
+    toc-location: left
+    code-fold: true
+    code-summary: "Show code"
+    embed-resources: true
+    self-contained: true
+    self-contained-math: true
+    keep-md: false
+    fig-width: 10
+    fig-height: 6
+lightbox:
+  match: auto
+  effect: zoom
+  desc-position: bottom
+  loop: true
+execute:
+  echo: false
+  warning: false
+  message: false
+
+---
+
+```{r setup}
+#| include: false
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(DT)
+library(plotly)
+library(gt)
+
+# Set global options
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center")
+
+# Define data directory
+data_dir <- "data"
+
+# Project information from pipeline
+project_info <- list(
+  code = "{{PROJECT_CODE}}",
+  name = "{{PROJECT_NAME}}",
+  author = "{{PROJECT_AUTHOR}}",
+  gene = "{{GENE_NAME}}"
+)
+
+# Function to render and display plots with specific order
+display_plots_by_pattern <- function(data_dir, pattern_base, gene_name, var_type, plot_order) {
+  # Define plot patterns in order: frequency, translocations, copy number, inversions
+  plot_patterns <- c(
+    "Frec_SVtype",
+    "Circle_Translocation", 
+    "CNV_Size_CN",
+    "Inversions_Segments"
+  )
+  
+  # Plot descriptions for captions
+  plot_descriptions <- c(
+    "structural variant frequency distribution by type",
+    "translocation patterns in circular representation", 
+    "copy number variant size and copy number analysis",
+    "inversion segments analysis"
+  )
+  
+  displayed_plots <- 0
+  
+  for (i in seq_along(plot_patterns)) {
+    pattern <- plot_patterns[i]
+    description <- plot_descriptions[i]
+    
+    # Construct expected filename
+    plot_file <- paste0(gene_name, "_", pattern_base, "_", var_type, "_", pattern, ".pdf")
+    pdf_path <- file.path(data_dir, plot_file)
+    
+    if (file.exists(pdf_path)) {
+      displayed_plots <- displayed_plots + 1
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      png_filename <- paste0(tolower(var_type), "_", pattern, "_", displayed_plots, ".png")
+      png::writePNG(img, png_filename)
+      
+      # Display image WITHOUT lightbox - using HTML img tag
+      cat('\n<div style="margin: 30px 0; text-align: center;">\n')
+      cat('  <img src="', png_filename, '" style="width:100%; height:auto; border:1px solid #dee2e6; border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="', str_to_title(var_type), ' ', description, '" />\n', sep = "")
+      cat('</div>\n\n')
+      cat('**_Figure:_** *', str_to_title(var_type), ' ', description, ' for {{GENE_NAME}}.*\n\n', sep = "")
+    }
+  }
+  
+  if (displayed_plots == 0) {
+    cat("⚠️ No ", var_type, " plots found for pattern: ", pattern_base, "\n\n")
+  }
+  
+  invisible(displayed_plots)
+}
+
+# Function to display participant metadata plots using simple Quarto lightbox like small_variants_report.qmd
+display_metadata_plots <- function(data_dir, pattern_base, gene_name, var_type) {
+  # Search for all PartMetadata files matching the pattern automatically
+  search_pattern <- paste0(gene_name, "_", pattern_base, "_", var_type, "_PartMetadata_.*\\.pdf$")
+  metadata_files <- list.files(data_dir, pattern = search_pattern, full.names = TRUE)
+  
+  displayed_plots <- 0
+  
+  if (length(metadata_files) > 0) {
+    # Sort files to ensure "AllStructuralVar" comes first
+    metadata_files <- sort(metadata_files)
+    all_struct_idx <- grep("AllStructuralVar|AllstructuralVar", metadata_files, ignore.case = TRUE)
+    
+    if (length(all_struct_idx) > 0) {
+      # Move "All structural variants" to the beginning
+      all_struct_file <- metadata_files[all_struct_idx[1]]
+      other_files <- metadata_files[-all_struct_idx[1]]
+      metadata_files <- c(all_struct_file, other_files)
+    }
+    
+    # Generate unique lightbox group for this section
+    lightbox_group <- paste0(tolower(var_type), "-", gsub("[^a-zA-Z0-9]", "", pattern_base), "-metadata-gallery")
+    
+    # Convert all PDFs to PNG with simple names (no timestamps)
+    png_files <- c()
+    
+    for (i in seq_along(metadata_files)) {
+      pdf_path <- metadata_files[i]
+      
+      if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
+        tryCatch({
+          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+          # Simple filename based on PDF name without timestamps
+          pdf_basename <- tools::file_path_sans_ext(basename(pdf_path))
+          png_filename <- paste0(pdf_basename, ".png")
+          png::writePNG(img, png_filename)
+          png_files <- c(png_files, png_filename)
+          displayed_plots <- displayed_plots + 1
+        }, error = function(e) {
+          cat('<!-- Error converting PDF:', basename(pdf_path), ': ', e$message, ' -->\n')
+        })
+      }
+    }
+    
+    if (length(png_files) > 0) {
+      # Display ONLY the first image (main one), rest accessible via lightbox
+      pdf_path <- metadata_files[1]
+      pdf_name <- basename(pdf_path)
+      
+      # Show first image with lightbox group
+      cat('![](', png_files[1], '){group="', lightbox_group, '" width="100%"}\n\n', sep = "")
+      
+      # Process remaining PDFs but DON'T display them (only for lightbox)
+      if (length(png_files) > 1) {
+        for (png_idx in 2:length(png_files)) {
+          png_filename <- png_files[png_idx]
+          
+          # Add to lightbox group but hide from main view (without label)
+          cat('![](', png_filename, '){group="', lightbox_group, '" style="display:none;"}\n\n', sep = "")
+        }
+      }
+      
+      # Add caption
+      cat('**_Figure:_** *', str_to_title(var_type), ' participant metadata analysis for {{GENE_NAME}}', sep = "")
+      if (length(png_files) > 1) {
+        cat('. Click the image to view additional metadata plots (', length(png_files), ' plots available) in the gallery', sep = "")
+      }
+      cat('.*\n\n')
+    }
+  }
+  
+  if (displayed_plots == 0) {
+    cat("⚠️ No ", var_type, " metadata plots found for pattern: ", pattern_base, "\n\n")
+  }
+  
+  invisible(displayed_plots)
+}
+```
+
+# Executive Summary
+
+This report presents a detailed quality control analysis of structural variants (CNVs and SVs) identified in the **{{GENE_NAME}}** 
+gene as part of the **{{PROJECT_CODE}}** research initiative. The analysis includes comprehensive QC visualizations for both 
+germline and somatic variants, basic and custom filtering strategies, and detailed statistical summaries of variant distributions 
+and participant metadata.
+
+Key components of this report include:
+
+- Quality control visualizations of CNV and SV distributions for germline and somatic variants
+- Participant metadata analysis with demographic and clinical context  
+- Comprehensive filtering analysis distinguishing somatic and germline variants
+- Interactive tables for detailed variant exploration
+- Statistical summaries of all analysis steps
+
+---
+
+# Raw Structural Variants QC
+
+This section presents the quality control analysis of raw structural variants, organized by germline and somatic classifications 
+to provide clear insights into the distinct patterns and characteristics of each variant type in the {{GENE_NAME}} gene.
+
+## Germline Variants
+
+### 1. Structural Variant Distribution and Classification
+Below are quality-control plots providing a concise overview of germline structural variants identified in the {{GENE_NAME}} gene. 
+The figures summarize variant type frequencies, translocation patterns, copy-number size and CN analyses, 
+and inversion segment summaries to support interpretation and downstream filtering decisions.
+
+```{r qc-germline-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+# Display germline plots in specific order: frequency, translocations, copy number, inversions
+display_plots_by_pattern(data_dir, "QC", project_info$gene, "germline", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+### 2. Participant Metadata Analysis
+
+```{r qc-germline-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_metadata_plots(data_dir, "QC", project_info$gene, "germline")
+```
+
+## Somatic Variants
+
+### 1. Structural Variant Distribution and Classification
+
+```{r qc-somatic-distribution}
+#| echo: false  
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_plots_by_pattern(data_dir, "QC", project_info$gene, "somatic", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+### 2. Participant Metadata Analysis
+
+```{r qc-somatic-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_metadata_plots(data_dir, "QC", project_info$gene, "somatic")
+```
+
+---
+
+# Filtering Analysis
+
+This section presents the results of filtering analysis applied to structural variants, organized by variant classification 
+to provide comprehensive insights into germline and somatic variant patterns after quality control filtering.
+
+## Basic Filtering
+
+This subsection presents the results of basic filtering applied to the structural variants dataset. Basic filtering includes 
+standard quality thresholds, frequency cutoffs, and classification criteria for CNVs and SVs.
+
+### Basic Filtering Statistics
+
+```{r basic-filter-stats-table}
+#| echo: false
+
+# Load basic filtering statistics
+basic_stats_files <- list.files(data_dir, pattern = "*_structural_variants_filter_basic_stats\\.csv$", full.names = TRUE)
+
+if (length(basic_stats_files) > 0) {
+  basic_stats <- read_csv(basic_stats_files[1], show_col_types = FALSE)
+  
+  if (nrow(basic_stats) > 0) {
+    # Create a nicely formatted table using gt
+    basic_stats %>%
+      mutate(
+        # Create readable metric names
+        metric = case_when(
+          # Main filtering steps
+          metric == "total_raw_variants" ~ "Total Raw Variants",
+          metric == "total_filter_PASS_variants" ~ "Total PASS Filter",
+          metric == "total_PASS_QUAL250_variants" ~ "Total PASS + QUAL ≥ 250",
+          str_detect(metric, "^total_PASS_.*_named$") ~ paste0("Total ", project_info$gene, " Named"),
+          
+          # Main categories
+          metric == "total_germline_variants" ~ "Total Germline",
+          metric == "total_somatic_variants" ~ "Total Somatic",
+          
+          # Germline subcategories
+          metric == "germline_LOH" ~ "  Germline LOH",
+          metric == "germline_INV" ~ "  Germline INV",
+          metric == "germline_DUP" ~ "  Germline DUP",
+          metric == "germline_DEL" ~ "  Germline DEL",
+          metric == "germline_CNV" ~ "  Germline CNV",
+          metric == "germline_BND" ~ "  Germline BND",
+          
+          # Somatic subcategories
+          metric == "somatic_LOH" ~ "  Somatic LOH",
+          metric == "somatic_INV" ~ "  Somatic INV",
+          metric == "somatic_DUP" ~ "  Somatic DUP",
+          metric == "somatic_DEL" ~ "  Somatic DEL",
+          metric == "somatic_CNV" ~ "  Somatic CNV",
+          metric == "somatic_BND" ~ "  Somatic BND",
+          
+          TRUE ~ str_to_title(str_replace_all(metric, "_", " "))
+        )
+      ) %>%
+      gt() %>%
+      tab_header(
+        title = paste("Basic Filtering Statistics for", project_info$gene),
+        subtitle = "Variant and participant counts by filtering step and variant type"
+      ) %>%
+      cols_label(
+        metric = "Metric",
+        variant_count = "Variants",
+        participant_count = "Participants"
+      ) %>%
+      fmt_number(
+        columns = c(variant_count, participant_count),
+        decimals = 0,
+        sep_mark = ","
+      ) %>%
+      tab_options(
+        table.width = pct(100),
+        table.font.size = px(14)
+      )
+  } else {
+    cat("No basic filtering statistics data available.")
+  }
+} else {
+  cat("No basic filtering statistics files found.")
+}
+```
+
+**_Table 1:_** *Progressive filtering statistics showing the impact of each filtering step on structural variant and participant counts.*
+
+### Germline Basic Filtered Variants
+
+#### 1. Structural Variant Distribution and Classification
+
+```{r basic-filter-germline-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_basic", project_info$gene, "germline", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r basic-filter-germline-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_metadata_plots(data_dir, "structural_variants_filter_basic", project_info$gene, "germline")
+```
+
+### Somatic Basic Filtered Variants
+
+#### 1. Structural Variant Distribution and Classification
+
+```{r basic-filter-somatic-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_basic", project_info$gene, "somatic", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r basic-filter-somatic-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_metadata_plots(data_dir, "structural_variants_filter_basic", project_info$gene, "somatic")
+```
+
+### Filtered Variants Table
+
+```{r basic-filtered-variants-table}
+#| echo: false
+
+# Load basic filtered variants for interactive table
+basic_filtered_files <- list.files(data_dir, pattern = "*_structural_variants_filter_basic_filtered\\.rds$", full.names = TRUE)
+
+if (length(basic_filtered_files) > 0) {
+  basic_filtered_data <- readRDS(basic_filtered_files[1])
+  
+  if (is.data.frame(basic_filtered_data) && nrow(basic_filtered_data) > 0) {
+    # Remove unwanted columns
+    cols_to_remove <- c("SAMPLE", "symbol_annotation")
+    basic_filtered_data <- basic_filtered_data %>%
+      select(-any_of(cols_to_remove))
+    
+    # Reorganize columns: ID first, variant_origin second, then the rest
+    all_cols <- names(basic_filtered_data)
+    
+    # Create ordered column list
+    ordered_cols <- c("ID", "variant_origin")
+    remaining_cols <- setdiff(all_cols, ordered_cols)
+    final_cols <- c(ordered_cols, remaining_cols)
+    
+    # Reorder the dataframe
+    basic_filtered_data <- basic_filtered_data %>%
+      select(all_of(final_cols))
+    
+    # Create datatable
+    datatable(
+      basic_filtered_data,
+      caption = paste("Basic Filtered Structural Variants for", project_info$gene),
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel')
+      ),
+      rownames = FALSE
+    )
+  } else {
+    cat("No basic filtered structural variant data available.")
+  }
+} else {
+  cat("No basic filtered structural variants RDS files found.")
+}
+```
+
+**_Table 2:_** *Interactive table of structural variants (combined germline and somatic) that passed basic filtering criteria for {{GENE_NAME}}. 
+Use the search and filter features to explore specific variants of interest. Note: Tables typically contain both germline and somatic variants combined.*
+
+---
+
+## OnlyHaem Filtering
+
+This subsection presents the results of OnlyHaem filtering applied to the structural variants dataset.
+
+### OnlyHaem Statistics
+
+```{r onlyhaem-stats-table}
+#| echo: false
+
+onlyhaem_stats_files <- list.files(data_dir, pattern = "*_structural_variants_filter_onlyHaem_stats\\.csv$", full.names = TRUE)
+
+if (length(onlyhaem_stats_files) > 0) {
+  onlyhaem_stats <- read_csv(onlyhaem_stats_files[1], show_col_types = FALSE)
+  
+  if (nrow(onlyhaem_stats) > 0) {
+    # Find the row index where total_onlyHaem_variants starts
+    start_idx <- which(onlyhaem_stats$metric == "total_onlyHaem_variants")
+    
+    if (length(start_idx) > 0) {
+      # Filter from total_onlyHaem_variants to the end
+      onlyhaem_stats %>%
+        slice(start_idx:n()) %>%
+        mutate(
+          metric = case_when(
+            # Main total
+            metric == "total_onlyHaem_variants" ~ "Total OnlyHaem Variants",
+            metric == "onlyHaem_germline" ~ "OnlyHaem Germline",
+            metric == "onlyHaem_somatic" ~ "OnlyHaem Somatic",
+            
+            # Germline subcategories
+            metric == "onlyHaem_germline_LOH" ~ "  OnlyHaem Germline LOH",
+            metric == "onlyHaem_germline_INV" ~ "  OnlyHaem Germline INV",
+            metric == "onlyHaem_germline_DUP" ~ "  OnlyHaem Germline DUP",
+            metric == "onlyHaem_germline_DEL" ~ "  OnlyHaem Germline DEL",
+            metric == "onlyHaem_germline_CNV" ~ "  OnlyHaem Germline CNV",
+            metric == "onlyHaem_germline_BND" ~ "  OnlyHaem Germline BND",
+            
+            # Somatic subcategories (if they exist)
+            metric == "onlyHaem_somatic_LOH" ~ "  OnlyHaem Somatic LOH",
+            metric == "onlyHaem_somatic_INV" ~ "  OnlyHaem Somatic INV",
+            metric == "onlyHaem_somatic_DUP" ~ "  OnlyHaem Somatic DUP",
+            metric == "onlyHaem_somatic_DEL" ~ "  OnlyHaem Somatic DEL",
+            metric == "onlyHaem_somatic_CNV" ~ "  OnlyHaem Somatic CNV",
+            metric == "onlyHaem_somatic_BND" ~ "  OnlyHaem Somatic BND",
+            
+            TRUE ~ str_to_title(str_replace_all(metric, "_", " "))
+          )
+        ) %>%
+        gt() %>%
+        tab_header(
+          title = "OnlyHaem Filtering Statistics",
+          subtitle = paste("Custom filtering results for", project_info$gene)
+        ) %>%
+        cols_label(
+          metric = "Metric",
+          variant_count = "Variants",
+          participant_count = "Participants"
+        ) %>%
+        fmt_number(
+          columns = c(variant_count, participant_count),
+          decimals = 0,
+          sep_mark = ","
+        ) %>%
+        tab_options(
+          table.width = pct(100),
+          table.font.size = px(14)
+        )
+    } else {
+      cat("No OnlyHaem filtering metrics found in statistics file.")
+    }
+  } else {
+    cat("No OnlyHaem filtering statistics data available.")
+  }
+} else {
+  cat("No OnlyHaem filtering statistics files found.")
+}
+```
+
+**_Table:_** *OnlyHaem filtering statistics for structural variants.*
+
+### Germline OnlyHaem Filtered Variants
+
+#### 1. Structural Variant Distribution and Classification
+
+```{r onlyhaem-germline-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_onlyHaem", project_info$gene, "germline", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r onlyhaem-germline-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_metadata_plots(data_dir, "structural_variants_filter_onlyHaem", project_info$gene, "germline")
+```
+
+### Somatic OnlyHaem Filtered Variants
+
+#### 1. Structural Variant Distribution and Classification
+
+```{r onlyhaem-somatic-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_onlyHaem", project_info$gene, "somatic", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r onlyhaem-somatic-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_metadata_plots(data_dir, "structural_variants_filter_onlyHaem", project_info$gene, "somatic")
+```
+
+### OnlyHaem Filtered Variants Table
+
+```{r onlyhaem-filtered-variants-table}
+#| echo: false
+
+onlyhaem_filtered_files <- list.files(data_dir, pattern = "*_structural_variants_filter_onlyHaem_filtered\\.rds$", full.names = TRUE)
+
+if (length(onlyhaem_filtered_files) > 0) {
+  onlyhaem_data <- readRDS(onlyhaem_filtered_files[1])
+  
+  if (is.data.frame(onlyhaem_data) && nrow(onlyhaem_data) > 0) {
+    # Remove unwanted columns
+    cols_to_remove <- c("SAMPLE", "symbol_annotation")
+    onlyhaem_data <- onlyhaem_data %>%
+      select(-any_of(cols_to_remove))
+    
+    # Reorganize columns: ID first, variant_origin second, then the rest
+    all_cols <- names(onlyhaem_data)
+    
+    # Create ordered column list
+    ordered_cols <- c("ID", "variant_origin")
+    remaining_cols <- setdiff(all_cols, ordered_cols)
+    final_cols <- c(ordered_cols, remaining_cols)
+    
+    # Reorder the dataframe
+    onlyhaem_data <- onlyhaem_data %>%
+      select(all_of(final_cols))
+    
+    # Create datatable
+    datatable(
+      onlyhaem_data,
+      caption = paste("OnlyHaem Filtered Structural Variants for", project_info$gene),
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel')
+      ),
+      rownames = FALSE
+    )
+  } else {
+    cat("No OnlyHaem filtered variants available.")
+  }
+}
+```
+
+**_Table 3:_** *Interactive table of structural variants (combined germline and somatic) that passed OnlyHaem filtering for {{GENE_NAME}}.*
+
+---
+
+## RmNeuro Filtering
+
+This subsection presents the results of RmNeuro filtering applied to the structural variants dataset.
+
+### RmNeuro Statistics
+
+```{r rmneuro-stats-table}
+#| echo: false
+
+rmneuro_stats_files <- list.files(data_dir, pattern = "*_structural_variants_filter_rmNeuro_stats\\.csv$", full.names = TRUE)
+
+if (length(rmneuro_stats_files) > 0) {
+  rmneuro_stats <- read_csv(rmneuro_stats_files[1], show_col_types = FALSE)
+  
+  if (nrow(rmneuro_stats) > 0) {
+    # Find the row index where total_rmNeuro_variants starts
+    start_idx <- which(rmneuro_stats$metric == "total_rmNeuro_variants")
+    
+    if (length(start_idx) > 0) {
+      # Filter from total_rmNeuro_variants to the end
+      rmneuro_stats %>%
+        slice(start_idx:n()) %>%
+        mutate(
+          metric = case_when(
+            # Main total
+            metric == "total_rmNeuro_variants" ~ "Total RmNeuro Variants",
+            metric == "rmNeuro_germline" ~ "RmNeuro Germline",
+            metric == "rmNeuro_somatic" ~ "RmNeuro Somatic",
+            
+            # Germline subcategories
+            metric == "rmNeuro_germline_LOH" ~ "  RmNeuro Germline LOH",
+            metric == "rmNeuro_germline_INV" ~ "  RmNeuro Germline INV",
+            metric == "rmNeuro_germline_DUP" ~ "  RmNeuro Germline DUP",
+            metric == "rmNeuro_germline_DEL" ~ "  RmNeuro Germline DEL",
+            metric == "rmNeuro_germline_CNV" ~ "  RmNeuro Germline CNV",
+            metric == "rmNeuro_germline_BND" ~ "  RmNeuro Germline BND",
+            
+            # Somatic subcategories (if they exist)
+            metric == "rmNeuro_somatic_LOH" ~ "  RmNeuro Somatic LOH",
+            metric == "rmNeuro_somatic_INV" ~ "  RmNeuro Somatic INV",
+            metric == "rmNeuro_somatic_DUP" ~ "  RmNeuro Somatic DUP",
+            metric == "rmNeuro_somatic_DEL" ~ "  RmNeuro Somatic DEL",
+            metric == "rmNeuro_somatic_CNV" ~ "  RmNeuro Somatic CNV",
+            metric == "rmNeuro_somatic_BND" ~ "  RmNeuro Somatic BND",
+            
+            TRUE ~ str_to_title(str_replace_all(metric, "_", " "))
+          )
+        ) %>%
+        gt() %>%
+        tab_header(
+          title = "RmNeuro Filtering Statistics",
+          subtitle = paste("Custom filtering results for", project_info$gene)
+        ) %>%
+        cols_label(
+          metric = "Metric",
+          variant_count = "Variants",
+          participant_count = "Participants"
+        ) %>%
+        fmt_number(
+          columns = c(variant_count, participant_count),
+          decimals = 0,
+          sep_mark = ","
+        ) %>%
+        tab_options(
+          table.width = pct(100),
+          table.font.size = px(14)
+        )
+    } else {
+      cat("No RmNeuro filtering metrics found in statistics file.")
+    }
+  } else {
+    cat("No rmNeuro filtering statistics data available.")
+  }
+} else {
+  cat("No rmNeuro filtering statistics files found.")
+}
+```
+
+**_Table:_** *RmNeuro filtering statistics for structural variants.*
+
+### Germline RmNeuro Filtered Variants
+
+#### 1. Structural Variant Distribution and Classification
+
+```{r rmneuro-germline-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_rmNeuro", project_info$gene, "germline", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r rmneuro-germline-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_metadata_plots(data_dir, "structural_variants_filter_rmNeuro", project_info$gene, "germline")
+```
+
+### Somatic RmNeuro Filtered Variants
+
+#### 1. Structural Variant Distribution and Classification
+
+```{r rmneuro-somatic-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_rmNeuro", project_info$gene, "somatic", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r rmneuro-somatic-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_metadata_plots(data_dir, "structural_variants_filter_rmNeuro", project_info$gene, "somatic")
+```
+
+### RmNeuro Filtered Variants Table
+
+```{r rmneuro-filtered-variants-table}
+#| echo: false
+
+rmneuro_filtered_files <- list.files(data_dir, pattern = "*_structural_variants_filter_rmNeuro_filtered\\.rds$", full.names = TRUE)
+
+if (length(rmneuro_filtered_files) > 0) {
+  rmneuro_data <- readRDS(rmneuro_filtered_files[1])
+  
+  if (is.data.frame(rmneuro_data) && nrow(rmneuro_data) > 0) {
+    # Remove unwanted columns
+    cols_to_remove <- c("SAMPLE", "symbol_annotation")
+    rmneuro_data <- rmneuro_data %>%
+      select(-any_of(cols_to_remove))
+    
+    # Reorganize columns: ID first, variant_origin second, then the rest
+    all_cols <- names(rmneuro_data)
+    
+    # Create ordered column list
+    ordered_cols <- c("ID", "variant_origin")
+    remaining_cols <- setdiff(all_cols, ordered_cols)
+    final_cols <- c(ordered_cols, remaining_cols)
+    
+    # Reorder the dataframe
+    rmneuro_data <- rmneuro_data %>%
+      select(all_of(final_cols))
+    
+    # Create datatable
+    datatable(
+      rmneuro_data,
+      caption = paste("RmNeuro Filtered Structural Variants for", project_info$gene),
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel')
+      ),
+      rownames = FALSE
+    )
+  } else {
+    cat("No rmNeuro filtered variants available.")
+  }
+}
+```
+
+**_Table 4:_** *Interactive table of structural variants (combined germline and somatic) that passed rmNeuro filtering for {{GENE_NAME}}.*
+
+---
+
+## Older60 Filtering
+
+This subsection presents the results of Older60 filtering (age > 60 years) applied to the structural variants dataset.
+
+### Older60 Statistics
+
+```{r older60-stats-table}
+#| echo: false
+
+older60_stats_files <- list.files(data_dir, pattern = "*_structural_variants_filter_older60_stats\\.csv$", full.names = TRUE)
+
+if (length(older60_stats_files) > 0) {
+  older60_stats <- read_csv(older60_stats_files[1], show_col_types = FALSE)
+  
+  if (nrow(older60_stats) > 0) {
+    # Find the row index where total_older60_variants starts
+    start_idx <- which(older60_stats$metric == "total_older60_variants")
+    
+    if (length(start_idx) > 0) {
+      # Filter from total_older60_variants to the end
+      older60_stats %>%
+        slice(start_idx:n()) %>%
+        mutate(
+          metric = case_when(
+            # Main total
+            metric == "total_older60_variants" ~ "Total Older60 Variants",
+            metric == "older60_germline" ~ "Older60 Germline",
+            metric == "older60_somatic" ~ "Older60 Somatic",
+            
+            # Germline subcategories
+            metric == "older60_germline_LOH" ~ "  Older60 Germline LOH",
+            metric == "older60_germline_INV" ~ "  Older60 Germline INV",
+            metric == "older60_germline_DUP" ~ "  Older60 Germline DUP",
+            metric == "older60_germline_DEL" ~ "  Older60 Germline DEL",
+            metric == "older60_germline_CNV" ~ "  Older60 Germline CNV",
+            metric == "older60_germline_BND" ~ "  Older60 Germline BND",
+            
+            # Somatic subcategories (if they exist)
+            metric == "older60_somatic_LOH" ~ "  Older60 Somatic LOH",
+            metric == "older60_somatic_INV" ~ "  Older60 Somatic INV",
+            metric == "older60_somatic_DUP" ~ "  Older60 Somatic DUP",
+            metric == "older60_somatic_DEL" ~ "  Older60 Somatic DEL",
+            metric == "older60_somatic_CNV" ~ "  Older60 Somatic CNV",
+            metric == "older60_somatic_BND" ~ "  Older60 Somatic BND",
+            
+            TRUE ~ str_to_title(str_replace_all(metric, "_", " "))
+          )
+        ) %>%
+        gt() %>%
+        tab_header(
+          title = "Older60 Filtering Statistics",
+          subtitle = paste("Custom filtering results for", project_info$gene)
+        ) %>%
+        cols_label(
+          metric = "Metric",
+          variant_count = "Variants",
+          participant_count = "Participants"
+        ) %>%
+        fmt_number(
+          columns = c(variant_count, participant_count),
+          decimals = 0,
+          sep_mark = ","
+        ) %>%
+        tab_options(
+          table.width = pct(100),
+          table.font.size = px(14)
+        )
+    } else {
+      cat("No Older60 filtering metrics found in statistics file.")
+    }
+  } else {
+    cat("No Older60 filtering statistics data available.")
+  }
+} else {
+  cat("No Older60 filtering statistics files found.")
+}
+```
+
+**_Table:_** *Older60 filtering statistics for structural variants.*
+
+### Germline Older60 Filtered Variants
+
+#### 1. Structural Variant Distribution and Classification
+
+```{r older60-germline-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_older60", project_info$gene, "germline", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r older60-germline-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_metadata_plots(data_dir, "structural_variants_filter_older60", project_info$gene, "germline")
+```
+
+### Somatic Older60 Filtered Variants
+
+#### 1. Structural Variant Distribution and Classification
+
+```{r older60-somatic-distribution}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_plots_by_pattern(data_dir, "structural_variants_filter_older60", project_info$gene, "somatic", c("Frec_SVtype", "Circle_Translocation", "CNV_Size_CN", "Inversions_Segments"))
+```
+
+#### 2. Participant Metadata Analysis
+
+```{r older60-somatic-metadata}
+#| echo: false
+#| results: asis
+#| fig-width: 10
+#| fig-height: 6
+
+display_metadata_plots(data_dir, "structural_variants_filter_older60", project_info$gene, "somatic")
+```
+
+### Older60 Filtered Variants Table
+
+```{r older60-filtered-variants-table}
+#| echo: false
+
+older60_filtered_files <- list.files(data_dir, pattern = "*_structural_variants_filter_older60_filtered\\.rds$", full.names = TRUE)
+
+if (length(older60_filtered_files) > 0) {
+  older60_data <- readRDS(older60_filtered_files[1])
+  
+  if (is.data.frame(older60_data) && nrow(older60_data) > 0) {
+    # Remove unwanted columns
+    cols_to_remove <- c("SAMPLE", "symbol_annotation")
+    older60_data <- older60_data %>%
+      select(-any_of(cols_to_remove))
+    
+    # Reorganize columns: ID first, variant_origin second, then the rest
+    all_cols <- names(older60_data)
+    
+    # Create ordered column list
+    ordered_cols <- c("ID", "variant_origin")
+    remaining_cols <- setdiff(all_cols, ordered_cols)
+    final_cols <- c(ordered_cols, remaining_cols)
+    
+    # Reorder the dataframe
+    older60_data <- older60_data %>%
+      select(all_of(final_cols))
+    
+    # Create datatable
+    datatable(
+      older60_data,
+      caption = paste("Older60 Filtered Structural Variants for", project_info$gene),
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel')
+      ),
+      rownames = FALSE
+    )
+  } else {
+    cat("No Older60 filtered variants available.")
+  }
+}
+```
+
+**_Table 5:_** *Interactive table of structural variants (combined germline and somatic) that passed Older60 filtering for {{GENE_NAME}}.*
+
+---
+
+# Report Information
+
+**Pipeline Details:**  
+- **Project Code**: {{PROJECT_CODE}}  
+- **Project Name**: {{PROJECT_NAME}}  
+- **Gene Analyzed**: {{GENE_NAME}}  
+- **Report Type**: Structural Variants Quality Control  
+- **Analysis Author**: {{PROJECT_AUTHOR}}  
+- **Report Format**: HTML (Self-contained)  
+- **Generation Date**: `r Sys.Date()`  
+- **R Version**: `r R.version.string`  
+
+---
+
+*This report was generated automatically by the {{PROJECT_CODE}} Nextflow pipeline using Quarto.*  
+*For questions about the analysis or interpretations, please contact the project team.*
