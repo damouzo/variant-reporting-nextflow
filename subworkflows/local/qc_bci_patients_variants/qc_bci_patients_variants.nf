@@ -18,11 +18,11 @@ workflow QC_BCI_PATIENTS_VARIANTS {
 
     main:
     // Create versions channel
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     // Load reference annotation files
-    prot_files_ch = Channel.fromPath("${params.prot_dir}/*.gff")
-    exon_files_ch = Channel.fromPath("${params.exon_dir}/*.tsv")
+    prot_files_ch = channel.fromPath("${params.prot_dir}/*.gff")
+    exon_files_ch = channel.fromPath("${params.exon_dir}/*.tsv")
 
     // Conditional logic based on environment capabilities
     if (params.enable_vep_annotation) {
@@ -61,14 +61,14 @@ workflow QC_BCI_PATIENTS_VARIANTS {
         log.info "Using pre-annotated BCI patients variants from ${params.bci_annotated_dir}"
         
         // Use pre-annotated files
-        annotated_files_ch = Channel
+        annotated_files_ch = channel
             .fromPath("${params.bci_annotated_dir}/*_vep_output.txt")
             .combine(gene_list_ch)
             .filter { file, gene -> file.name.contains(gene) }
             .map { file, gene -> tuple(gene, file) }
 
         // Create channels for original files  
-        normalized_files_ch = Channel
+        normalized_files_ch = channel
             .fromPath("${params.bci_annotated_dir}/*_normalized_combined_data.tsv")
             .combine(gene_list_ch)
             .filter { file, gene -> file.name.contains(gene) }
@@ -151,7 +151,7 @@ workflow QC_BCI_PATIENTS_VARIANTS {
             tuple(gene_name, file)
         }
     
-    template_file = Channel.fromPath("${params.templates_dir}/quarto/bci_patients_variants_report.qmd")
+    template_file = channel.fromPath("${params.templates_dir}/quarto/bci_patients_variants_report.qmd")
     
     // Prepare input files for the report
     report_files_ch = cleanFormatBciPatientsVar.out.clean_rds

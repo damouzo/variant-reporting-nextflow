@@ -16,11 +16,11 @@ workflow QC_STRUCT_VARIANTS {
 
     main:
     // Create versions channel
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     // Load reference annotation files
-    prot_files_ch = Channel.fromPath("${params.prot_dir}/*.gff")
-    exon_files_ch = Channel.fromPath("${params.exon_dir}/*.tsv")
+    prot_files_ch = channel.fromPath("${params.prot_dir}/*.gff")
+    exon_files_ch = channel.fromPath("${params.exon_dir}/*.tsv")
 
     // Prepare protein and exon files with gene_name as the key
     prot_files_with_gene_ch = prot_files_ch
@@ -37,16 +37,16 @@ workflow QC_STRUCT_VARIANTS {
 
     // Filter and prepare input channels for CNV and SV
     cnv_germline_ch = struct_var_ch
-        .filter { it.name.startsWith("CNV") && it.name.contains("germline") }
+        .filter { file -> file.name.startsWith("CNV") && file.name.contains("germline") }
     
     cnv_somatic_ch = struct_var_ch
-        .filter { it.name.startsWith("CNV") && it.name.contains("somatic") }
-    
+        .filter { file -> file.name.startsWith("CNV") && file.name.contains("somatic") }
+
     sv_germline_ch = struct_var_ch
-        .filter { it.name.startsWith("SV") && it.name.contains("germline") }
-    
+        .filter { file -> file.name.startsWith("SV") && file.name.contains("germline") }
+
     sv_somatic_ch = struct_var_ch
-        .filter { it.name.startsWith("SV") && it.name.contains("somatic") }
+        .filter { file -> file.name.startsWith("SV") && file.name.contains("somatic") }
 
     // Combine channels (germline and somatic) for CNV
     cnv_input_ch = cnv_germline_ch
@@ -147,7 +147,7 @@ workflow QC_STRUCT_VARIANTS {
             // out.filtered_plots: path(filtered_plot_file)
 
     // Generate Structural Variants QC Report
-    template_file = Channel.fromPath("${params.templates_dir}/quarto/structural_variants_report.qmd")
+    template_file = channel.fromPath("${params.templates_dir}/quarto/structural_variants_report.qmd")
     
     // Prepare QC plots keyed by gene
     qc_plots_keyed = plotQCstructVar.out.plots
@@ -281,9 +281,9 @@ workflow QC_STRUCT_VARIANTS {
     emit:
     clean_cnv_tables      = cnv_clean_ch.map { gene, file -> tuple(file, gene) } 
     clean_sv_tables       = sv_clean_ch.map { gene, file -> tuple(file, gene) }  
-    partID_txt            = params.enable_sql_queries ? extractStructVarPartID.out.partID_txt : Channel.empty()
-    partMet_tsv           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_tsv : Channel.empty()
-    partMet_rds           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_rds : Channel.empty()
+    partID_txt            = params.enable_sql_queries ? extractStructVarPartID.out.partID_txt : channel.empty()
+    partMet_tsv           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_tsv : channel.empty()
+    partMet_rds           = params.enable_sql_queries ? extractStructVarPartID.out.partMet_rds : channel.empty()
     filtered_clean_tsv    = filterStructVar.out.filtered_clean_tsv     // File TSV (all filter types)
     filtered_clean_rds    = filterStructVar.out.filtered_clean_rds     // tuple(val(gene_name), val(filter_type), path(rds_file))
     filtered_stats_csv    = filterStructVar.out.stats_csv              // Filter statistics (all filter types)
