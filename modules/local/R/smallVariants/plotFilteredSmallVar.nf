@@ -8,7 +8,7 @@ process plotFilteredSmallVar {
     publishDir "${params.results_dir}/${gene_name}/${filter_type}/plots", mode: 'copy'
 
     input:
-    tuple val(gene_name), val(filter_type), path(filtered_table), path(prot_file), path(exon_file), path(part_metadata_file)
+    tuple val(gene_name), val(filter_type), path(filtered_table), path(prot_file), path(exon_file), path(part_metadata_file), path(filtered_metadata_file)
 
     // Save all PDFs generated
     output:

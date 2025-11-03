@@ -327,7 +327,7 @@ out_file_rds <- paste0(gene_name, "_small_variants_", filter_type, "_filtered.rd
 saveRDS(variant_filtered_table, file = out_file_rds)
 
 # IMPORTANT: Save filtered metadata
-metadata_output_file <- paste0(gene_name, "_", filter_type, "_filtered_metadata.rds")
+metadata_output_file <- paste0(gene_name, "_small_variants_", filter_type, "_filtered_metadata.rds")
 saveRDS(filtered_metadata, metadata_output_file)
 
 # Print output messages

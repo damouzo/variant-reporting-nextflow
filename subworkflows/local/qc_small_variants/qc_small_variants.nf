@@ -90,16 +90,17 @@ workflow QC_SMALL_VARIANTS {
             // out.filtered_clean_rds: tuple(val(gene_name), val(filter_type), path(filtered_rds_file))
 
     // Preparar input para plotFilteredSmallVar 
-    // Combine filtered data with reference files - each filter_type gets combined with same reference files
+    // Combine filtered data with reference files and filtered metadata
     plot_filter_input_ch = filterSmallVar.out.filtered_clean_rds
+        .join(filterSmallVar.out.filtered_metadata_rds, by: [0, 1])  // Join by gene_name and filter_type
         .combine(prot_files_with_gene_ch)
-        .filter { gene_filter, _filter_type, _filtered_rds, gene_prot, _prot_file -> gene_filter == gene_prot }
+        .filter { gene_filter, _filter_type, _filtered_rds, _filtered_metadata, gene_prot, _prot_file -> gene_filter == gene_prot }
         .combine(exon_files_with_gene_ch)
-        .filter { gene_filter, _filter_type, _filtered_rds, _gene_prot, _prot_file, gene_exon, _exon_file -> gene_filter == gene_exon }
+        .filter { gene_filter, _filter_type, _filtered_rds, _filtered_metadata, _gene_prot, _prot_file, gene_exon, _exon_file -> gene_filter == gene_exon }
         .combine(extractSmallVarPartID.out.partMet_rds)
-        .filter { gene_filter, _filter_type, _filtered_rds, _gene_prot, _prot_file, _gene_exon, _exon_file, gene_meta, _part_met -> gene_filter == gene_meta }
-        .map { gene_name, filter_type, filtered_table, _gene_prot, prot_file, _gene_exon, exon_file, _gene_meta, part_met -> 
-            tuple(gene_name, filter_type, filtered_table, prot_file, exon_file, part_met) 
+        .filter { gene_filter, _filter_type, _filtered_rds, _filtered_metadata, _gene_prot, _prot_file, _gene_exon, _exon_file, gene_meta_orig, _part_met -> gene_filter == gene_meta_orig }
+        .map { gene_name, filter_type, filtered_table, filtered_metadata, _gene_prot, prot_file, _gene_exon, exon_file, _gene_meta_orig, part_met -> 
+            tuple(gene_name, filter_type, filtered_table, prot_file, exon_file, part_met, filtered_metadata) 
         }
 
     // RUN plotFilteredSmallVar
@@ -222,6 +223,7 @@ workflow QC_SMALL_VARIANTS {
     clean_rds               = cleanFormatSmallVar.out.clean_rds         // tuple(val(gene_name), path(rds_file)) 
     filtered_clean_tsv      = filterSmallVar.out.filtered_clean_tsv     // File TSV (all filter types)
     filtered_clean_rds      = filterSmallVar.out.filtered_clean_rds     // tuple(val(gene_name), val(filter_type), path(rds_file))
+    filtered_metadata_rds   = filterSmallVar.out.filtered_metadata_rds  // tuple(val(gene_name), val(filter_type), path(filtered_metadata_rds)) 
     filtered_stats_csv      = filterSmallVar.out.stats_csv              // Filter statistics (all filter types)
     partID_txt              = extractSmallVarPartID.out.partID_txt      // participant IDs .txt
     partMet_tsv             = extractSmallVarPartID.out.partMet_tsv     // participant metadata .tsv

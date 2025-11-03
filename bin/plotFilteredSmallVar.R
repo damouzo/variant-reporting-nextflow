@@ -2033,13 +2033,13 @@ protein_info <- rtracklayer::import(prot_file)
 ## Exon tsv
 exon_info <- read_tsv(exon_file)
 
-## Participant Metadata - Load filtered metadata if available
-# Construir el nombre del archivo de metadatos filtrados
-filtered_metadata_file <- paste0(gene_name, "_", filter_type, "_filtered_metadata.rds")
+## Participant Metadata - Use filtered metadata passed as argument
+# The filtered metadata file is now passed as an argument from Nextflow
+expected_filtered_file <- paste0(gene_name, "_small_variants_", filter_type, "_filtered_metadata.rds")
 
-if (file.exists(filtered_metadata_file)) {
-    cat("Loading filtered metadata from:", filtered_metadata_file, "\n")
-    metadata_info <- readRDS(filtered_metadata_file)
+if (file.exists(expected_filtered_file)) {
+    cat("Loading filtered metadata from:", expected_filtered_file, "\n")
+    metadata_info <- readRDS(expected_filtered_file)
 } else {
     cat("Filtered metadata file not found, using original metadata:", p_metadata_file, "\n")
     metadata_info <- readRDS(p_metadata_file)
