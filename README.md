@@ -1,22 +1,27 @@
 # DHX34 & DDX41 Bioinformatics Project
 
 ## Overview
-This repository contains a bioinformatics project focused on the study of the DHX34 and DDX41 genes, which are associated with predisposition to hematological neoplasms. The project aims to identify, annotate, and interpret genetic variants in these genes using high-throughput sequencing data.
+Nextflow-based pipeline for analyzing germline variants in DHX34 and DDX41 genes associated with hematological neoplasm predisposition. Integrates variant annotation, quality control, clinical data, and automated reporting for large-scale WGS analysis.
 
-## Purpose
-The main goal is to better understand the genetic landscape and clinical significance of variants in DHX34 and DDX41, both in germline and somatic contexts. This knowledge may contribute to improved diagnosis, risk assessment, and research into the mechanisms underlying blood cancers.
+## Key Features
 
-## Context
-Variants in DHX34 and DDX41 have been implicated in inherited and acquired forms of myeloid neoplasms. This project integrates data processing pipelines, annotation tools, and visualization scripts to facilitate comprehensive analysis of these genes in large genomic datasets.
+### Core Capabilities
+- **Variant Processing**: Automated handling of small variants (SNVs/indels) and structural variants (CNVs/SVs)
+- **Multi-Gene Support**: Simultaneous processing of multiple genes from input lists
+- **Clinical Integration**: LabKey database queries for patient metadata and disease stratification
+- **BCI Cohort Analysis**: Cross-cohort comparison between BCI patients and Genomics England data
 
-## Main Features
-- Automated processing and annotation of small and structural variants.
-- Integration of clinical and genomic data for interpretation.
-- Generation of summary statistics and publication-ready plots.
-- Modular and reproducible workflows using Nextflow and R.
+### Automated Reporting
+- **Quarto Reports**: Per-gene HTML reports with variant statistics, interactive plots, and QC metrics
+- **Pipeline Metrics**: Execution timeline, resource usage, DAG visualization, and detailed trace files
+- **Publication-Ready**: High-quality graphics suitable for manuscripts
 
-## Nextflow Metro Plot
-Below is the Nextflow Metro Plot used in the project:
+### Technical Features
+- **Containerized**: Singularity/Docker containers for reproducibility
+- **Modular Design**: Organized subworkflows for different variant types
+- **Multi-Environment**: Profile-based configuration (TRE, HPC, local)
+
+## Pipeline Architecture
 
 ![Nextflow Metro Plot](docs/images/Nextflow_MetroPlots/Nextflow.drawio.png)
 
@@ -27,7 +32,6 @@ Below is the Nextflow Metro Plot used in the project:
 - `results/`: Output results and plots.
 - `modules/`, `subworkflows/`: Modular Nextflow components.
 - `docs/`: Documentation and project presentations.
-
 
 
 

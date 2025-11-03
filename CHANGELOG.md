@@ -1,5 +1,10 @@
 # Changelog
 
+## [v1.3.0] - 2025-11-03
+- Automated Quarto reporting system: Per-gene HTML reports with integrated variant statistics, QC plots, and filtering metrics
+- Pipeline execution reports: Timeline visualization, resource usage tracking, DAG generation, and detailed trace files
+- Advanced filtering framework: Gene-specific custom filtering strategies with configurable parameters
+
 ## [v1.2.0] - 2025-09-05
 - Added new modules and workflows for BCI patients variants analysis, including data cleaning, QC plotting, and participant ID extraction.
 
