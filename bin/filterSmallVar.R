@@ -112,7 +112,7 @@ apply_custom_filters <- function(variant_df, metadata_df, custom_args) {
     } else if (filter_value == "exclude_neurology") {
       # Exclude participants with neurological diseases
       disease_term <- "Neurology and neurodevelopmental disorders"
-      filtered_participants <- metadata_df$participant_id[!metadata_df$disease_group %in% disease_term]
+      filtered_participants <- metadata_df$participant_id[!grepl(disease_term, metadata_df$normalised_disease_group)]
       
     } else {
       stop("ERROR: The filter_type is not defined in the script")
