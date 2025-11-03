@@ -128,7 +128,7 @@ apply_custom_filters <- function(variant_df, metadata_df, custom_args) {
     filter_value <- custom_args[["age_filter"]]
     cat("Applying age filter:", filter_value, "\n")
     
-    if (filter_value == "older_than_60") {
+    if (filter_value == "older_than_60" || filter_value == "older_than 60") {
       filtered_participants <- metadata_df$participant_id[
         metadata_df$rare_disease_diagnosis_age >= 60 | metadata_df$cancer_diagnosis_age >= 60
       ]
@@ -250,11 +250,45 @@ stats_variants_filter <- rbind(stats_variants_filter,
 custom_filtering_variants <- variant_filtered_table
 
 # Apply CUSTOM filtering AFTER standard filtering (if not basic filter) -------
+# Initialize filtered_metadata to be the same as original for basic filter
+filtered_metadata <- participant_metadata
+
 if (filter_type != "filter_basic") {
   cat("\n=== APPLYING CUSTOM FILTERING FOR", filter_type, "===\n")
   
   # Apply custom filters to the high-quality variants
   variant_filtered_table <- apply_custom_filters(custom_filtering_variants, participant_metadata, custom_filter_args)
+  
+  # Also filter the metadata to match the filtering logic
+  if ("disease_group_filter" %in% names(custom_filter_args)) {
+    filter_value <- custom_filter_args[["disease_group_filter"]]
+    
+    if (filter_value == "haematological_disease") {
+      # Include only participants with haematological diseases
+      disease_term <- "Haematological and immunological disorders"
+      filtered_metadata <- participant_metadata %>%
+        filter(grepl(disease_term, normalised_disease_group))
+      
+    } else if (filter_value == "exclude_neurology") {
+      # Exclude participants with neurological diseases
+      disease_term <- "Neurology and neurodevelopmental disorders"
+      filtered_metadata <- participant_metadata %>%
+        filter(!grepl(disease_term, normalised_disease_group))
+    }
+    
+    cat("Metadata filtered - participants remaining:", nrow(filtered_metadata), "\n")
+  }
+  
+  # Apply age filters to metadata if specified
+  if ("age_filter" %in% names(custom_filter_args)) {
+    filter_value <- custom_filter_args[["age_filter"]]
+    
+    if (filter_value == "older_than_60" || filter_value == "older_than 60") {
+      filtered_metadata <- filtered_metadata %>%
+        filter(rare_disease_diagnosis_age >= 60 | cancer_diagnosis_age >= 60)
+      cat("Age filter applied to metadata - participants remaining:", nrow(filtered_metadata), "\n")
+    }
+  }
   
   cat("After custom filtering:", nrow(variant_filtered_table), "variants remain\n")
   
@@ -269,6 +303,8 @@ if (filter_type != "filter_basic") {
   cat("\n=== BASIC FILTERING - No custom filters applied ===\n")
   # For basic filter, the final result is the high-quality variants
   variant_filtered_table <- custom_filtering_variants
+  # For basic filter, metadata remains unchanged
+  filtered_metadata <- participant_metadata
 }
 
 
@@ -290,6 +326,10 @@ write.table(variant_filtered_table, file = out_file_tsv, sep = "\t", row.names =
 out_file_rds <- paste0(gene_name, "_small_variants_", filter_type, "_filtered.rds")
 saveRDS(variant_filtered_table, file = out_file_rds)
 
+# IMPORTANT: Save filtered metadata
+metadata_output_file <- paste0(gene_name, "_", filter_type, "_filtered_metadata.rds")
+saveRDS(filtered_metadata, metadata_output_file)
+
 # Print output messages
 cat("FILTERING COMPLETED - ", filter_type, "\n")
 cat("Gene:", gene_name, "\n")
@@ -298,4 +338,5 @@ cat("Final participant count:", count_unique_participants(variant_filtered_table
 cat("\nOutput files written:")
 cat("\n- Stats file:", stats_file_csv)
 cat("\n- TSV file:", out_file_tsv)
-cat("\n- RDS file:", out_file_rds, "\n")
+cat("\n- RDS file:", out_file_rds)
+cat("\n- Filtered metadata file:", metadata_output_file, "\n")
