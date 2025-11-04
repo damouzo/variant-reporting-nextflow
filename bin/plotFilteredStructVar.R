@@ -16,11 +16,9 @@ filter_type     <- args[6] # "filter_basic", "filter_onlyHaem", "filter_rmNeuro"
 
 # Message validation files
 cat("=================================================\n")
-cat("PLOT GENERATION FOR FILTERED STRUCTURAL VARIANTS\n")
-cat("Gene:", gene_name, "\n")
-cat("Filter type:", filter_type, "\n")
+cat("Generation of StructVar plot for ", gene_name, " with ", filter_type, "\n")
 cat("=================================================\n")
-cat("Validating input files for gene:", gene_name, "\n")
+
 missing_files <- c()
 if (!file.exists(filtered_table)) missing_files <- c(missing_files, paste("Filtered table:", filtered_table))
 if (!file.exists(prot_file)) missing_files <- c(missing_files, paste("Protein file:", prot_file))
@@ -365,11 +363,15 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
             TRUE ~ numeric_var
           )
         ) %>%
-        filter(!is.na(numeric_var)) %>%  # Remove rows where conversion failed
+        filter(!is.na(numeric_var)) %>!  # Remove rows where conversion failed
         count(var_binned, order_value) %>%
         mutate(
           pct = n / sum(n) * 100,
-          label = ifelse(pct < 5, "<5%", paste0(round(pct), "%"))
+          # Mask only if count is between 1-4 (not based on percentage)
+          needs_masking = n >= 1 & n <= 4,
+          label = ifelse(needs_masking, "1-4*", paste0(round(pct), "%")),
+          # Set bar height to 1 when masking to hide real count
+          pct_plot = ifelse(needs_masking, 1, pct)
         ) %>%
         arrange(order_value)  # Order by the numeric value instead of count
     } else {
@@ -405,9 +407,14 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
         }
       }
       
-      # Add percentage labels
+      # Mask only if count is between 1-4 (not based on percentage)
       df_count <- df_count %>%
-        mutate(label = ifelse(pct < 5, "<5%", paste0(round(pct), "%")))
+        mutate(
+          needs_masking = n >= 1 & n <= 4,
+          label = ifelse(needs_masking, "1-4*", paste0(round(pct), "%")),
+          # Set bar height to 1 when masking to hide real count
+          pct_plot = ifelse(needs_masking, 1, pct)
+        )
     }
     
     if (nrow(df_count) == 0) next
@@ -426,17 +433,21 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
     max_label_length <- max(nchar(as.character(df_count$var_binned)), na.rm = TRUE)
     
     # Calculate y-axis limit to accommodate labels
-    max_pct <- max(df_count$pct)
+    max_pct <- max(df_count$pct_plot)
     y_limit <- max_pct * 1.15
+    
+    # Add masking note to title if any values are masked
+    has_masked_values <- any(df_count$needs_masking, na.rm = TRUE)
+    title_suffix <- ifelse(has_masked_values, " | * <5 participants", "")
     
     # Create plot with appropriate ordering
     if (var %in% c("yob", "diagnosis_age")) {
       # For temporal variables, order by numeric value (chronological order)
-      p <- ggplot(df_count, aes(x = reorder(var_binned, order_value), y = pct, fill = var_binned)) +
+      p <- ggplot(df_count, aes(x = reorder(var_binned, order_value), y = pct_plot, fill = var_binned)) +
         geom_col(show.legend = FALSE, alpha = 0.8) +
         geom_text(aes(label = label), vjust = -0.5, size = 3) +
         labs(x = "", y = "Perc. of Participants") +
-        ggtitle(paste(var, "(n =", sum(df_count$n), ")")) +
+        ggtitle(paste0(var, " (n = ", sum(df_count$n), ")", title_suffix)) +
         ylim(0, y_limit) +
         theme_minimal() +
         theme(
@@ -453,11 +464,11 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
         ) %>%
         arrange(sort_order)
       
-      p <- ggplot(df_count, aes(x = factor(var_binned, levels = var_binned), y = pct, fill = var_binned)) +
+      p <- ggplot(df_count, aes(x = factor(var_binned, levels = var_binned), y = pct_plot, fill = var_binned)) +
         geom_col(show.legend = FALSE, alpha = 0.8) +
         geom_text(aes(label = label), vjust = -0.5, size = 3) +
         labs(x = "", y = "Perc. of Participants") +
-        ggtitle(paste(var, "(n =", sum(df_count$n), ")")) +
+        ggtitle(paste0(var, " (n = ", sum(df_count$n), ")", title_suffix)) +
         ylim(0, y_limit) +
         theme_minimal() +
         theme(
@@ -467,11 +478,11 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
         )
     } else {
       # For other categorical variables, order by frequency (descending)
-      p <- ggplot(df_count, aes(x = reorder(var_binned, -pct), y = pct, fill = var_binned)) +
+      p <- ggplot(df_count, aes(x = reorder(var_binned, -pct), y = pct_plot, fill = var_binned)) +
         geom_col(show.legend = FALSE, alpha = 0.8) +
         geom_text(aes(label = label), vjust = -0.5, size = 3) +
         labs(x = "", y = "Perc. of Participants") +
-        ggtitle(paste(var, "(n =", sum(df_count$n), ")")) +
+        ggtitle(paste0(var, " (n = ", sum(df_count$n), ")", title_suffix)) +
         ylim(0, y_limit) +
         theme_minimal() +
         theme(
@@ -656,12 +667,6 @@ if (length(pdf_files) == 0) {
 }
 
 cat("=================================================\n")
-cat("STRUCTURAL VARIANT PLOT GENERATION COMPLETED\n")
-cat("Gene:", gene_name, "\n")
-cat("Filter type:", filter_type, "\n")
-cat("All available plots generated successfully!\n")
+cat("Completed StructVar plot for ", gene_name, " with ", filter_type, "\n")
 cat("PDF files created:", length(list.files(pattern = "*.pdf")), "\n")
 cat("=================================================\n")
-
-
-
