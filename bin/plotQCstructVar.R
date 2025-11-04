@@ -328,7 +328,7 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
     
     # Add masking note to title if any values are masked
     has_masked_values <- any(df_count$needs_masking, na.rm = TRUE)
-    title_suffix <- ifelse(has_masked_values, " | * <5 participants", "")
+    plot_masking_note <- ifelse(has_masked_values, " | * <5 participants", "")
     
     # Create plot with appropriate ordering
     if (var %in% c("yob", "diagnosis_age")) {
@@ -337,7 +337,7 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
         geom_col(show.legend = FALSE, alpha = 0.8) +
         geom_text(aes(label = label), vjust = -0.5, size = 3) +
         labs(x = "", y = "Perc. of Participants") +
-        ggtitle(paste0(var, " (n = ", sum(df_count$n), ")", title_suffix)) +
+        ggtitle(paste0(var, " (n = ", sum(df_count$n), ")", plot_masking_note)) +
         ylim(0, y_limit) +
         theme_minimal() +
         theme(
@@ -358,7 +358,7 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
         geom_col(show.legend = FALSE, alpha = 0.8) +
         geom_text(aes(label = label), vjust = -0.5, size = 3) +
         labs(x = "", y = "Perc. of Participants") +
-        ggtitle(paste0(var, " (n = ", sum(df_count$n), ")", title_suffix)) +
+        ggtitle(paste0(var, " (n = ", sum(df_count$n), ")", plot_masking_note)) +
         ylim(0, y_limit) +
         theme_minimal() +
         theme(
@@ -372,7 +372,7 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
         geom_col(show.legend = FALSE, alpha = 0.8) +
         geom_text(aes(label = label), vjust = -0.5, size = 3) +
         labs(x = "", y = "Perc. of Participants") +
-        ggtitle(paste0(var, " (n = ", sum(df_count$n), ")", title_suffix)) +
+        ggtitle(paste0(var, " (n = ", sum(df_count$n), ")", plot_masking_note)) +
         ylim(0, y_limit) +
         theme_minimal() +
         theme(
