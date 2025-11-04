@@ -363,7 +363,7 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
             TRUE ~ numeric_var
           )
         ) %>%
-        filter(!is.na(numeric_var)) %>!  # Remove rows where conversion failed
+        filter(!is.na(numeric_var)) %>%  # Remove rows where conversion failed
         count(var_binned, order_value) %>%
         mutate(
           pct = n / sum(n) * 100,
