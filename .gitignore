@@ -6,6 +6,7 @@ data/
 docs/[0-9]*
 work/
 results/
+protein-fold/
 
 # Development
 .nextflow*
