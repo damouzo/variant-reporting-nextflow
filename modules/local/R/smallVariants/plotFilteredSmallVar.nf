@@ -1,7 +1,7 @@
 // Nextflow script to call the R script for plotting filtered small variants
 
 process plotFilteredSmallVar {
-    tag { "${gene_name}_${filter_type}" }
+    tag "${gene_name}_${filter_type}"
     label 'r_process'
 
     // Publicar todos los PDFs generados en subcarpeta organizada por gen y filtro

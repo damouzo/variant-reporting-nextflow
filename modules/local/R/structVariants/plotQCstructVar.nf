@@ -1,7 +1,7 @@
 // Nextflow script to call the R script for plotting QC of structural variants
 
 process plotQCstructVar {
-    tag { gene_name }
+    tag "$gene_name"
     label 'r_process'
 
     // Publicar todos los PDFs generados en subcarpeta organizada por gen

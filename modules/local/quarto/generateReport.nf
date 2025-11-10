@@ -1,5 +1,5 @@
 process generateReport {
-    tag { gene_name }
+    tag "$gene_name"
     label 'quarto_process'
     
     publishDir "${params.results_dir}/reports", mode: 'copy'

@@ -1,7 +1,7 @@
 // Nextflow proces to call the R script for cleaning and formatting structural variants
 
 process cleanFormatStructVar {
-    tag { gene_name }
+    tag "$gene_name"
     label 'r_process'
     
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'

@@ -1,7 +1,7 @@
 // Nextflow process to call the R script for filtering structural variants
 
 process filterStructVar {
-    tag { "${gene_name}_${filter_type}" }
+    tag "${gene_name}_${filter_type}"
     label 'r_process'
     
     publishDir "${params.results_dir}/${gene_name}/${filter_type}", mode: 'copy'

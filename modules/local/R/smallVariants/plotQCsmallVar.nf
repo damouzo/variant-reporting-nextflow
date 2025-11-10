@@ -1,7 +1,7 @@
 // Nextflow script to call the R script for plotting QC of small variants
 
 process plotQCsmallVar {
-    tag { gene_name }
+    tag "$gene_name"
     label 'r_process'
 
     // Publicar todos los PDFs generados en subcarpeta organizada por gen

@@ -1,7 +1,7 @@
 // Nextflow process to call the R script for cleaning and formatting small variants
 
 process cleanFormatSmallVar {
-    tag { gene_name }
+    tag "$gene_name"
     label 'r_process'
     
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'

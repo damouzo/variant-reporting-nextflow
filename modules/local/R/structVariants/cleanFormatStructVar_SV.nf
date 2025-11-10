@@ -1,7 +1,7 @@
 // Nextflow process to call the R script for cleaning and formatting structural SV variants
 
 process cleanFormatStructVar_SV {
-    tag { gene_name }
+    tag "$gene_name"
     label 'r_process'
 
     input:

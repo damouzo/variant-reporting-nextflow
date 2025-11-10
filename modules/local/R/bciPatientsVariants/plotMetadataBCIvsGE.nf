@@ -1,7 +1,7 @@
 // Nextflow process to call the R script for plotting metadata comparison between BCI and GE patients
 
 process plotMetadataBCIvsGE {
-    tag { gene_name }
+    tag "$gene_name"
     label 'r_process'
 
     publishDir "${params.results_dir}/${gene_name}/plots/bci_patients_variants/comparison_BCI_GE", mode: 'copy'

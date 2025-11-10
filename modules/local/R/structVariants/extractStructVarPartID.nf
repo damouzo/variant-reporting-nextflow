@@ -1,7 +1,7 @@
 // Nextflow process to call the R script for extracting participant IDs from structural variants
 
 process extractStructVarPartID {
-    tag { gene_name }
+    tag "$gene_name"
     label 'r_process_sql'
 
     publishDir "${params.results_dir}/${gene_name}", mode: 'copy'
