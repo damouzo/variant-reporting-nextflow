@@ -2029,7 +2029,9 @@ df_data <- variants_table %>%
   filter(!is.na(Protein_position)) %>%
   mutate(Protein_pos_start = as.numeric(str_extract(Protein_position, "\\d+"))) %>%
   mutate(Exon_pos_start = as.numeric(str_extract(gsub(".*:","",Location), "\\d+"))) %>%
-  mutate(LabelVarPlot = as.character(Variant_Name))
+  mutate(LabelVarPlot = as.character(Variant_Name)) %>%
+  # Clean labels: keep only first ID (before first comma) - typically the rs number
+  mutate(LabelVarPlot = str_trim(str_extract(LabelVarPlot, "^[^,]+")))
   
 subset_label <- "Canonical"
 
@@ -2064,6 +2066,11 @@ prot.gr$color <- setNames(pastel_colors, unique(prot.gr$Consequence))[prot.gr$Co
 legends_prot <- list(labels=unique(prot.gr$Consequence), fill=unique(prot.gr$color))
 prot.gr$shape <- ifelse(grepl("^(rs|COSV)", names(prot.gr)), "circle", "diamond")
 
+# Add SNPsideID for caterpillar layout: germline -> top, somatic -> bottom
+if("GermlineOrSomatic" %in% colnames(df_data)) {
+  prot.gr$SNPsideID <- ifelse(tolower(df_data$GermlineOrSomatic) == "germline", "top", "bottom")
+}
+
 
 # Exon features --------------
 exon_info$Exon_Num <- paste0("Exon ", seq_len(nrow(exon_info)))
@@ -2092,6 +2099,11 @@ exon.gr$color <- setNames(pastel_colors, unique(exon.gr$Consequence))[exon.gr$Co
 legends_exon <- list(labels=unique(exon.gr$Consequence), fill=unique(exon.gr$color))
 exon.gr$shape <- ifelse(grepl("^(rs|COSV)", names(exon.gr)), "circle", "diamond")
 
+# Add SNPsideID for caterpillar layout: germline -> top, somatic -> bottom
+if("GermlineOrSomatic" %in% colnames(df_data)) {
+  exon.gr$SNPsideID <- ifelse(tolower(df_data$GermlineOrSomatic) == "germline", "top", "bottom")
+}
+
 # Detect if gene is on reverse strand (exons in reverse order)
 # This happens when first exon has higher genomic position than last exon
 if (nrow(exon_info) > 1) {
@@ -2116,6 +2128,7 @@ if (nrow(exon_info) > 1) {
     exon_gr_Consequence <- exon.gr$Consequence
     exon_gr_color <- exon.gr$color
     exon_gr_shape <- exon.gr$shape
+    exon_gr_SNPsideID <- if("SNPsideID" %in% colnames(mcols(exon.gr))) exon.gr$SNPsideID else NULL
     
     # Invert exon.gr positions
     original_starts <- start(exon.gr)
@@ -2132,6 +2145,7 @@ if (nrow(exon_info) > 1) {
     exon.gr$Consequence <- exon_gr_Consequence
     exon.gr$color <- exon_gr_color
     exon.gr$shape <- exon_gr_shape
+    if(!is.null(exon_gr_SNPsideID)) exon.gr$SNPsideID <- exon_gr_SNPsideID
     
     # Store original metadata for features_exon
     features_exon_names <- names(features_exon)

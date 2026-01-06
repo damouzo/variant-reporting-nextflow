@@ -96,13 +96,23 @@ if (length(rds_files) > 0) {
     # Select key columns for display
     display_cols <- c(
       "Variant_REF", "Patient_Centre_REF","Center" ,"Gene_id", "Transcript",
-      "cDNA_Change_HGVS_c", "Protein_Change_HGVS_p", "Location", 
+      "cDNA_Change_HGVS_c", "Protein_Change_HGVS_p", "GermlineOrSomatic", "Location", 
       "Allele", "Consequence", "CANONICAL", "IMPACT", "SYMBOL", "Existing_variation",
       "SIFT", "PolyPhen", "EXON", "AF", "CLIN_SIG"
     )
     
     # Filter to available columns
     available_cols <- intersect(display_cols, names(variants_data))
+    
+    # Generate colors for unique patients
+    unique_patients <- unique(variants_data$Patient_Centre_REF)
+    patient_colors <- setNames(
+      colorRampPalette(c("#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", 
+                         "#D5BAFF", "#FFC8E1", "#C2F0FC", "#C5FAD5", "#FFDAC1",
+                         "#E2F0CB", "#C3B1E1", "#F8B195", "#F67280", "#F6E2B3",
+                         "#B5EAD7", "#FFABAB", "#D0F4DE", "#A0CED9", "#FFCBF2"))(length(unique_patients)),
+      unique_patients
+    )
     
     # Create interactive table
     variants_data %>%
@@ -128,6 +138,13 @@ if (length(rds_files) > 0) {
         backgroundColor = styleEqual(
           c('HIGH', 'MODERATE', 'LOW', 'MODIFIER'),
           c('#ffcccc', '#ffffcc', '#ccffcc', '#e6e6e6')
+        )
+      ) %>%
+      formatStyle(
+        'Patient_Centre_REF',
+        backgroundColor = styleEqual(
+          names(patient_colors),
+          unname(patient_colors)
         )
       )
   } else {

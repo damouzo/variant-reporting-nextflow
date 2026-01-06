@@ -33,7 +33,7 @@ detect_center <- function(filename) {
 normalize_columns <- function(df, center, filename) {
     # Create a copy to work with
     normalized_df <- df
-    column_selected <- c("Variant_REF", "Patient_Centre_REF", "Gene_id", "Transcript", "cDNA_Change_HGVS_c", "Protein_Change_HGVS_p", "Center")
+    column_selected <- c("Variant_REF", "Patient_Centre_REF", "Gene_id", "Transcript", "cDNA_Change_HGVS_c", "Protein_Change_HGVS_p", "Center", "GermlineOrSomatic")
     
     # Center-specific column mapping based on actual data structures
     if (center == "FJD") {
@@ -46,7 +46,8 @@ normalize_columns <- function(df, center, filename) {
                 cDNA_Change_HGVS_c = `VARIANT`,
                 Protein_Change_HGVS_p = str_extract(cDNA_Change_HGVS_c, "p\\.\\([^)]+\\)"),
                 cDNA_Change_HGVS_c = str_extract(cDNA_Change_HGVS_c, "c\\.[^:]+"),
-                Center = "FJD"
+                Center = "FJD",
+                GermlineOrSomatic = GermlineOrSomatic
             ) %>%
             mutate(Variant_REF = paste0("F", row_number())) %>%
             select(all_of(column_selected))
@@ -61,7 +62,8 @@ normalize_columns <- function(df, center, filename) {
                 Protein_Change_HGVS_p = HGVS_P,
                 Reference_Allele = str_extract(cDNA_Change_HGVS_c, "(?<=\\d)[A-Z](?=>)"),
                 Alternative_Allele = str_extract(cDNA_Change_HGVS_c, "(?<=>)[A-Z]"),
-                Center = "PV"
+                Center = "PV",
+                GermlineOrSomatic = GermlineOrSomatic
             ) %>%
             mutate(Variant_REF = paste0("P", row_number())) %>%
             select(all_of(column_selected))
@@ -78,7 +80,8 @@ normalize_columns <- function(df, center, filename) {
                 Transcript = str_remove(Transcript, "\\..*$"),
                 Reference_Allele = str_extract(cDNA_Change_HGVS_c, "(?<=\\d)[A-Z](?=>)"),
                 Alternative_Allele = str_extract(cDNA_Change_HGVS_c, "(?<=>)[A-Z]"),
-                Center = "KC"
+                Center = "KC",
+                GermlineOrSomatic = GermlineOrSomatic
             ) %>%
             mutate(Variant_REF = paste0("K", row_number())) %>%
             select(all_of(column_selected))
