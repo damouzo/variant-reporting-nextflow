@@ -2092,7 +2092,86 @@ exon.gr$color <- setNames(pastel_colors, unique(exon.gr$Consequence))[exon.gr$Co
 legends_exon <- list(labels=unique(exon.gr$Consequence), fill=unique(exon.gr$color))
 exon.gr$shape <- ifelse(grepl("^(rs|COSV)", names(exon.gr)), "circle", "diamond")
 
-
+# Detect if gene is on reverse strand (exons in reverse order)
+# This happens when first exon has higher genomic position than last exon
+if (nrow(exon_info) > 1) {
+  first_exon_pos <- exon_info$ExonStart[1]
+  last_exon_pos <- exon_info$ExonStart[nrow(exon_info)]
+  is_reverse_strand <- first_exon_pos > last_exon_pos
+  
+  if (is_reverse_strand) {
+    cat("Gene is on reverse strand. Creating inverted ranges for exon-based lollipop plot.\n")
+    
+    # Create inverted ranges for exon lollipop plot
+    # Transform coordinates so that they appear reversed in the plot
+    exon_range_start <- min(exon_info$ExonStart, na.rm = TRUE)
+    exon_range_end <- max(exon_info$ExonEnd, na.rm = TRUE)
+    
+    # Store original metadata for exon.gr
+    exon_gr_names <- names(exon.gr)
+    exon_gr_seqnames <- seqnames(exon.gr)
+    exon_gr_strand <- strand(exon.gr)
+    exon_gr_node_label <- exon.gr$node.label
+    exon_gr_node_label_cex <- exon.gr$node.label.cex
+    exon_gr_Consequence <- exon.gr$Consequence
+    exon_gr_color <- exon.gr$color
+    exon_gr_shape <- exon.gr$shape
+    
+    # Invert exon.gr positions
+    original_starts <- start(exon.gr)
+    new_starts <- exon_range_start + (exon_range_end - original_starts)
+    
+    exon.gr <- GRanges(
+      seqnames = exon_gr_seqnames,
+      ranges = IRanges(start = new_starts, width = 1, names = exon_gr_names),
+      strand = exon_gr_strand
+    )
+    # Restore metadata
+    exon.gr$node.label <- exon_gr_node_label
+    exon.gr$node.label.cex <- exon_gr_node_label_cex
+    exon.gr$Consequence <- exon_gr_Consequence
+    exon.gr$color <- exon_gr_color
+    exon.gr$shape <- exon_gr_shape
+    
+    # Store original metadata for features_exon
+    features_exon_names <- names(features_exon)
+    features_exon_seqnames <- seqnames(features_exon)
+    features_exon_strand <- strand(features_exon)
+    features_exon_Note <- features_exon$Note
+    features_exon_fill <- features_exon$fill
+    
+    # Invert features_exon positions
+    original_feature_starts <- start(features_exon)
+    original_feature_ends <- end(features_exon)
+    new_feature_ends <- exon_range_start + (exon_range_end - original_feature_starts)
+    new_feature_starts <- exon_range_start + (exon_range_end - original_feature_ends)
+    
+    # Reverse the order of all vectors so they match the biological order
+    new_feature_starts_rev <- rev(new_feature_starts)
+    new_feature_ends_rev <- rev(new_feature_ends)
+    
+    features_exon <- GRanges(
+      seqnames = rev(features_exon_seqnames),
+      ranges = IRanges(start = new_feature_starts_rev, end = new_feature_ends_rev, 
+                       names = rev(features_exon_names)),
+      strand = rev(features_exon_strand)
+    )
+    # Restore metadata (already in reversed order from above)
+    features_exon$Note <- rev(features_exon_Note)
+    features_exon$fill <- rev(features_exon_fill)
+    
+    # Create custom x-axis with inverted labels
+    # Generate tick positions for the inverted coordinate system
+    num_ticks <- 5
+    tick_positions <- seq(exon_range_start, exon_range_end, length.out = num_ticks)
+    # The labels should show the original (non-inverted) genomic positions in descending order
+    original_positions <- exon_range_start + (exon_range_end - tick_positions)
+    xaxis_inverted <- tick_positions
+    names(xaxis_inverted) <- format(original_positions, scientific = FALSE, big.mark = ",")
+  }
+} else {
+  is_reverse_strand <- FALSE
+}
 
 # Create filename and plot
 filename <- paste0(gene_name, "_Lollipop_", subset_label, ".pdf")
@@ -2104,8 +2183,17 @@ lolliplot(prot.gr, features_prot, legend=legends_prot, ylab="Participant IDs",
 grid.text(paste0(subset_label, " Variants in Protein of ", gene_name), 
           x=.5, y=.98, gp=gpar(cex=1.5, fontface="bold"))
 # Exon
-lolliplot(exon.gr, features_exon, legend=legends_exon, ylab="Participant IDs",
-          yaxis.gp = gpar(fontsize=12), xaxis.gp = gpar(fontsize=12))
+if (is_reverse_strand) {
+  # For reverse strand, use custom x-axis with inverted labels
+  lolliplot(exon.gr, features_exon, 
+            legend=legends_exon, ylab="Participant IDs",
+            xaxis = xaxis_inverted,
+            yaxis.gp = gpar(fontsize=12), xaxis.gp = gpar(fontsize=12))
+} else {
+  # For forward strand, use default x-axis
+  lolliplot(exon.gr, features_exon, legend=legends_exon, ylab="Participant IDs",
+            yaxis.gp = gpar(fontsize=12), xaxis.gp = gpar(fontsize=12))
+}
 grid.text(paste0(subset_label, " Variants in Exon of ", gene_name), 
           x=.5, y=.98, gp=gpar(cex=1.5, fontface="bold"))
 dev.off()

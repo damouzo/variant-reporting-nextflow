@@ -2100,8 +2100,23 @@ adaptive_bw <- round(adaptive_bw / 100) * 100
 cat(paste0("Gene length: ", format(gene_length, big.mark = ","), " bp\n"))
 cat(paste0("Adaptive bandwidth: ", format(adaptive_bw, big.mark = ","), " bp\n"))
 
+# Detect if gene is on reverse strand (exons in reverse order)
+# This happens when first exon has higher genomic position than last exon
+if (nrow(exon_info) > 1) {
+  first_exon_pos <- exon_info$ExonStart[1]
+  last_exon_pos <- exon_info$ExonStart[nrow(exon_info)]
+  is_reverse_strand <- first_exon_pos > last_exon_pos
+  
+  if (is_reverse_strand) {
+    cat("Gene is on reverse strand. Inverting X-axis for exon-based density plot.\n")
+  }
+} else {
+  is_reverse_strand <- FALSE
+}
+
 pdf(paste0(gene_name,"_QC_Density_variants.pdf"), width=14, height=8)
-ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IMPACT_annotation)) +
+# Create base plot
+base_plot <- ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IMPACT_annotation)) +
     geom_density(bw=adaptive_bw,alpha = 0.3) +
     geom_rect(data = exon_info,
               aes(xmin = ExonStart, xmax = ExonEnd, ymin = -max_density*0.03, ymax = max_density*0.03),
@@ -2115,6 +2130,13 @@ ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IM
     labs(title = paste0("Density distribution of ",gene_name ," variants in genomic positions by impact annotation"),
         x = "Genomic Position (exons in dark green)", y = paste0("Density bw = ",adaptive_bw," bp"), color = "Impact", fill = "Impact") +
     theme_minimal()
+
+# Add scale_x_reverse() if gene is on reverse strand
+if (is_reverse_strand) {
+  base_plot <- base_plot + scale_x_reverse()
+}
+
+print(base_plot)
 dev.off()
 
     

@@ -2182,8 +2182,23 @@ if (nrow(valid_groups) > 0) {
   max_density_germline <- 0
 }
 
+# Detect if gene is on reverse strand (exons in reverse order)
+# This happens when first exon has higher genomic position than last exon
+if (nrow(exon_info) > 1) {
+  first_exon_pos <- exon_info$ExonStart[1]
+  last_exon_pos <- exon_info$ExonStart[nrow(exon_info)]
+  is_reverse_strand <- first_exon_pos > last_exon_pos
+  
+  if (is_reverse_strand) {
+    cat("Gene is on reverse strand. Inverting X-axis for exon-based density plot.\n")
+  }
+} else {
+  is_reverse_strand <- FALSE
+}
+
 pdf(paste0(gene_name, "_small_variants_", filter_type, "_germline_Density_variants.pdf"), width=14, height=8)
-print(ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IMPACT_annotation)) +
+# Create base plot
+base_plot <- ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fill = IMPACT_annotation)) +
       geom_density(bw=adaptive_bw,alpha = 0.3) +
       geom_rect(data = exon_info,
                 aes(xmin = ExonStart, xmax = ExonEnd, ymin = -max_density_germline*0.03, ymax = max_density_germline*0.03),
@@ -2196,7 +2211,14 @@ print(ggplot(variants_table, aes(x = POS_variant, color = IMPACT_annotation, fil
       facet_wrap(~ CHROM_variant, scales = "free_x") +
       labs(title = paste0("Density distribution of ",gene_name ," germline variants in genomic positions by impact annotation"),
           x = "Genomic Position (exons in dark green)", y = paste0("Density bw = ",adaptive_bw," bp"), color = "Impact", fill = "Impact") +
-      theme_minimal())
+      theme_minimal()
+
+# Add scale_x_reverse() if gene is on reverse strand
+if (is_reverse_strand) {
+  base_plot <- base_plot + scale_x_reverse()
+}
+
+print(base_plot)
 dev.off()
 
     
