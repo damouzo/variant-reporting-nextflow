@@ -55,7 +55,7 @@ project_info <- list(
 # Executive Summary
 
 This comprehensive **HTML report** presents a detailed quality control analysis of germline variants identified in the **{{GENE_NAME}}** 
-gene as part of the **{{PROJECT_CODE}}** research initiative. The analysis integrates patient-derived variant data from participants from Kings College (KC), Pavia (PV), and the Barts Cancer Institute (BCI)
+gene as part of the **{{PROJECT_CODE}}** research initiative. The analysis integrates patient-derived variant data from participants from Kings College (KC), Pavia (PV), and Fundación Jiménez Díaz (FJD)
 with population-level reference data from Genomics England (GE), providing crucial insights into variant pathogenicity, population frequency, and clinical significance.
 
 Key components of this report include:
@@ -70,7 +70,7 @@ Key components of this report include:
 
 ## 1. Patient Variants Overview
 
-This section presents all germline variants identified in KC, PV, and BCI patients, annotated using the Variant Effect Predictor (VEP). 
+This section presents all germline variants identified in KC, PV, and FJD patients, annotated using the Variant Effect Predictor (VEP). 
 Each variant is characterized by its genomic location, consequence type, predicted functional impact, and pathogenicity (ClinVar, SIFT, PolyPhen). 
 The interactive table allows for detailed exploration and filtering of variants based on multiple criteria.
 
@@ -138,7 +138,7 @@ if (length(rds_files) > 0) {
 }
 ```
 
-**_Table 1:_** *Interactive table summarizing germline variants identified in KC, PV, and BCI patients. 
+**_Table 1:_** *Interactive table summarizing germline variants identified in KC, PV, and FJD patients. 
 The table includes genomic and protein-level changes (HGVS nomenclature), functional consequences (HIGH, MODERATE, LOW, or MODIFIER), 
 pathogenicity predictions (SIFT and PolyPhen scores), and clinical annotations (ClinVar significance). 
 Users can filter and explore the data interactively.*
