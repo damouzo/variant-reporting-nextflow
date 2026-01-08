@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Script: plotQCsmallVar
+# Script: plotQCsmallVar.R
 
 # Arguments --------------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
@@ -2029,9 +2029,11 @@ df_data <- variants_table %>%
   filter(!is.na(Protein_position)) %>%
   mutate(Protein_pos_start = as.numeric(str_extract(Protein_position, "\\d+"))) %>%
   mutate(Exon_pos_start = as.numeric(str_extract(gsub(".*:","",Location), "\\d+"))) %>%
-  mutate(LabelVarPlot = as.character(Variant_Name)) %>%
-  # Clean labels: keep only first ID (before first comma) - typically the rs number
-  mutate(LabelVarPlot = str_trim(str_extract(LabelVarPlot, "^[^,]+")))
+  mutate(LabelVarPlot = as.character(Protein_Change_HGVS_p)) %>%
+  # Clean labels: remove prefix and keep only the mutation notation like p.(Arg525His)
+  mutate(LabelVarPlot = ifelse(is.na(LabelVarPlot) | LabelVarPlot == "", 
+                                as.character(Variant_Name), 
+                                LabelVarPlot))
   
 subset_label <- "Canonical"
 
