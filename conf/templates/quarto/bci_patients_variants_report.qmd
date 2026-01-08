@@ -316,7 +316,7 @@ if (length(comparison_files) > 0) {
     
     # Select columns for display (exclude Het_samples, Hom_samples, Hemi_samples)
     display_cols <- c(
-      "Gene", "Variant_REF", "Variant", "Location", "Allele",
+      "Gene", "Variant_REF", "Variant", "Location", "Allele", "Protein_Change_HGVS_p",
       "IMPACT_annotation", "match_type", "Het_samples_num", "Hom_samples_num", "Hemi_samples_num",
       "Existing_variation", "ID_variant", "CHROM_variant", "POS_variant",
       "REF_variant", "ALT_variant"
@@ -363,6 +363,7 @@ if (length(comparison_files) > 0) {
         Variant_Name = character(),
         Location = character(),
         Allele = character(),
+        Protein_Change_HGVS_p = character(),
         IMPACT_annotation = character(),
         match_type = character()
       ) %>%

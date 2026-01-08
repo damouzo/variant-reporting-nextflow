@@ -304,7 +304,16 @@ create_metadata_plots <- function(variant_metadata, rs_id, gene_name) {
     grid.newpage()
     
     # Add main title
-    grid.text(paste0("Participant Distribution for ", gene_name, " - ", rs_id),
+    # Extract protein change for this rs_id from comparison_data
+    protein_change <- comparison_data %>%
+      mutate(rs_id_temp = str_extract(Variant_Name, "^[^,]+")) %>%
+      filter(rs_id_temp == rs_id) %>%
+      pull(Protein_Change_HGVS_p) %>%
+      first()
+    
+    protein_change_str <- ifelse(!is.null(protein_change) && !is.na(protein_change) && protein_change != "", 
+                                  paste0(" - ", protein_change), "")
+    grid.text(paste0("Participant Distribution for ", gene_name, " - ", rs_id, protein_change_str),
               x = 0.5, y = 0.97, 
               gp = gpar(fontsize = 16, fontface = "bold"))
     

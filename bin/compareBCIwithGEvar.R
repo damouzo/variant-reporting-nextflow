@@ -140,6 +140,7 @@ if (nrow(all_matches) > 0) {
     Location = character(0),
     Allele = character(0),
     Existing_variation = character(0),
+    Protein_Change_HGVS_p = character(0),
     Variant_REF = character(0),
     Patient_Centre_REF = character(0),
     CLIN_SIG = character(0),
