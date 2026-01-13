@@ -419,7 +419,7 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
     
     if (nrow(df_count) == 0) next
     
-    # Truncate labels that are 50+ characters
+    # Truncate labels that are 50+ characters and ensure uniqueness
     df_count <- df_count %>%
       mutate(
         var_binned = ifelse(
@@ -427,7 +427,17 @@ create_metadata_plots <- function(variant_data, title_suffix, filename_suffix, v
           paste0(substr(as.character(var_binned), 1, 47), "..."),
           as.character(var_binned)
         )
-      )
+      ) %>%
+      # Make truncated labels unique by adding a numeric suffix if needed
+      group_by(var_binned) %>%
+      mutate(
+        var_binned = if(n() > 1) {
+          paste0(var_binned, " (", row_number(), ")")
+        } else {
+          var_binned
+        }
+      ) %>%
+      ungroup()
     
     # Calculate maximum label length for this variable (after truncation)
     max_label_length <- max(nchar(as.character(df_count$var_binned)), na.rm = TRUE)
