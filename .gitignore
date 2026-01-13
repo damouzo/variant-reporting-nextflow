@@ -11,6 +11,7 @@ protein-fold/
 # Development
 .nextflow*
 *.log
+*.todo
 .vscode/
 *.Rproj
 .Rproj.user
