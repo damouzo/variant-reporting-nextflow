@@ -1,6 +1,6 @@
 ---
-title: "{{PROJECT_NAME}} - Structural Variants Quality Control Report"
-subtitle: "{{GENE_NAME}} Gene Analysis"
+title: "Structural Variants Report for {{GENE_NAME}} in Genomic England DB"
+subtitle: "{{PROJECT_NAME}}"
 author: "{{PROJECT_AUTHOR}} ({{PROJECT_CODE}})"
 date: "`r Sys.Date()`"
 format:

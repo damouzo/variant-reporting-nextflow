@@ -1,6 +1,6 @@
 ---
-title: "{{PROJECT_NAME}} - Quality Control Report"
-subtitle: "{{GENE_NAME}} Gene Analysis"
+title: "BCI Variants Report for {{GENE_NAME}} comparing with Genomic England DB"
+subtitle: "{{PROJECT_NAME}}"
 author: "{{PROJECT_AUTHOR}} ({{PROJECT_CODE}})"
 date: "`r Sys.Date()`"
 format:
