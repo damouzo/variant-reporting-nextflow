@@ -1,5 +1,20 @@
 # Changelog
 
+## [v1.5.1] - 2026-11-18
+- Comorbidity plots: split `diag_all`/`diagnosis_code_all` on their real delimiter (`|`, `,`, `;`) so codes are no longer shown concatenated; ICD-10 sub-codes grouped to the 3-character category; non-disease ICD-10 chapters (`Z/U/V/W/X/Y`, configurable via `comorbidity_icd10_exclude_chapters`) dropped.
+- Free-text phenotype matching is now spelling-tolerant (matches both "Anemia" and "Anaemia").
+- Phenotype (HPO/TEXT) queries now discover the real column names of `rare_diseases_participant_phenotype` and log query errors/row counts, instead of silently returning nothing.
+- Disease-related `gt` tables: header left-aligned (no longer clipped), `n_*` shown with 0 decimals, `pct_*` with 2 decimals.
+
+## [v1.5.0] - 2026-11-18
+- Disease-related report section revamped:
+  - Prevalence barplot: percentages to one decimal, conditional `* masked counts (1-4)` note, masked bars drawn at a fixed tiny height, and Fisher significance brackets (`*/**/***`, FDR-adjusted) connecting the Filtered/Programme pair.
+  - Plots rendered as a lightbox carousel (`filter_basic` first).
+  - New descriptive comorbidity barplots per ontology (SNOMED / ICD-10 / HPO): all disease terms present among the filtered participants, 100% = filtered participants, counts 1-4 merged into "Other / small counts masked". Also rendered in a carousel.
+  - Fixed gt/Fisher tables and DT participant tables not rendering (raw HTML / empty) inside `for` loops by using `results: asis` + `gt::as_raw_html()` and `htmltools::tagList()`.
+  - Intro text summarised and now lists the queried terms.
+- `queryDiseaseRelated` emits the new `*_disease_related_comorbidity_*.pdf` files.
+
 ## [v1.4.0] - 2026-11-09
 - Per-filter participant outputs: `{gene}_small_variants_{filter}_participantID.txt` and `{gene}_small_variants_{filter}_participants_variants.tsv` (participants x variants with metadata)
 - Disease-related analysis process (`params.disease_related`): queries 100kGP HPO phenotype, ecds (SNOMED) and hes_apc (ICD-10), computes prevalence and enrichment vs the programme, writes stats/plots under `{gene}/{filter}/disease_related/`

@@ -61,6 +61,7 @@ process generateReport {
     # Render HTML
     echo "Rendering HTML report (PDF generation disabled for container optimization)..."
     quarto render ${report_name}.qmd --to html
+    echo "quarto render exit code: \$?"
 
     # Verify HTML output
     if [ -f "${report_name}.html" ]; then

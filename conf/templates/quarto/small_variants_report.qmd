@@ -89,7 +89,7 @@ if (length(impact_plot_files) > 0) {
   
   if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
     tryCatch({
-      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
       png_filename <- "qc_impact_frequency.png"
       png::writePNG(img, png_filename)
       
@@ -125,7 +125,7 @@ if (length(maf_plot_files) > 0) {
   
   if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
     tryCatch({
-      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
       png_filename <- "qc_maf_distribution.png"
       png::writePNG(img, png_filename)
       
@@ -161,7 +161,7 @@ if (length(maf_impact_plot_files) > 0) {
   
   if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
     tryCatch({
-      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
       png_filename <- "qc_maf_vs_impact.png"
       png::writePNG(img, png_filename)
       
@@ -197,7 +197,7 @@ if (length(density_plot_files) > 0) {
   
   if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
     tryCatch({
-      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
       png_filename <- "qc_density_variants.png"
       png::writePNG(img, png_filename)
       
@@ -236,7 +236,7 @@ pdf_path <- file.path(data_dir, metadata_file)
 
 if (file.exists(pdf_path)) {
   # Convert PDF to PNG and display
-  img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+  img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
   png_filename <- "qc_metadata_main.png"
   png::writePNG(img, png_filename)
   
@@ -374,7 +374,7 @@ if (length(basic_filter_plot_files) > 0) {
     # Convert PDF to PNG
     if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
       tryCatch({
-        img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+        img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
         png_filename <- paste0("basic_filter_variant_plot_", plot_idx, ".png")
         png::writePNG(img, png_filename)
         
@@ -424,7 +424,7 @@ if (length(lollipop_plot_files) > 0) {
   # Convert first PDF to PNG and display
   if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
     tryCatch({
-      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
       png_filename <- "basic_lollipop_main.png"
       png::writePNG(img, png_filename)
       
@@ -447,7 +447,7 @@ if (length(lollipop_plot_files) > 0) {
       # Convert PDF to PNG but don't display (hidden for lightbox only)
       if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
         tryCatch({
-          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
           png_filename <- paste0("basic_lollipop_", pdf_idx, ".png")
           png::writePNG(img, png_filename)
           
@@ -492,7 +492,7 @@ if (length(metadata_plot_files) > 0) {
   # Convert first PDF to PNG and display
   if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
     tryCatch({
-      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+      img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
       png_filename <- "basic_metadata_main.png"
       png::writePNG(img, png_filename)
       
@@ -515,7 +515,7 @@ if (length(metadata_plot_files) > 0) {
       # Convert PDF to PNG but don't display (hidden for lightbox only)
       if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
         tryCatch({
-          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
           png_filename <- paste0("basic_metadata_", pdf_idx, ".png")
           png::writePNG(img, png_filename)
           
@@ -706,7 +706,7 @@ if (length(custom_filter_names) > 0) {
         
         if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
           tryCatch({
-            img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+            img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
             png_filename <- paste0("custom_", filter_name, "_variant_plot_", plot_counter, ".png")
             png::writePNG(img, png_filename)
             
@@ -743,7 +743,7 @@ if (length(custom_filter_names) > 0) {
       
       if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
         tryCatch({
-          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
           png_filename <- paste0("custom_", filter_name, "_lollipop_main.png")
           png::writePNG(img, png_filename)
           
@@ -762,7 +762,7 @@ if (length(custom_filter_names) > 0) {
           
           if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
             tryCatch({
-              img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+              img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
               png_filename <- paste0("custom_", filter_name, "_lollipop_", pdf_idx, ".png")
               png::writePNG(img, png_filename)
               
@@ -797,7 +797,7 @@ if (length(custom_filter_names) > 0) {
       
       if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
         tryCatch({
-          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+          img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
           png_filename <- paste0("custom_", filter_name, "_metadata_main.png")
           png::writePNG(img, png_filename)
           
@@ -816,7 +816,7 @@ if (length(custom_filter_names) > 0) {
           
           if (requireNamespace("pdftools", quietly = TRUE) && requireNamespace("png", quietly = TRUE)) {
             tryCatch({
-              img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 300)
+              img <- pdftools::pdf_render_page(pdf_path, page = 1, dpi = 150)
               png_filename <- paste0("custom_", filter_name, "_metadata_", pdf_idx, ".png")
               png::writePNG(img, png_filename)
               
@@ -914,26 +914,34 @@ This section lists the participants that survive each filtering strategy, togeth
 pv_files <- list.files(data_dir, pattern = "_participants_variants\\.tsv$", full.names = TRUE)
 
 if (length(pv_files) > 0) {
-  for (f in pv_files) {
+  # Build every table as an htmlwidget and let knitr inject the dependencies at
+  # once via tagList (printing widgets inside a for-loop drops their JS
+  # dependencies and renders them empty).
+  pv_widgets <- lapply(pv_files, function(f) {
     filter_label <- str_extract(basename(f), "filter_[A-Za-z0-9]+")
     display <- str_to_title(str_replace_all(filter_label, "_", " "))
     df <- read_tsv(f, show_col_types = FALSE)
-
-    print(
-      df %>%
-        datatable(
-          caption = paste0(display, " - participants and variants (",
-                           length(unique(df$participant_id)), " participants; ",
-                           nrow(df), " variant records)"),
-          filter = "top",
-          extensions = "Buttons",
-          options = list(pageLength = 10, scrollX = TRUE, dom = "Bfrtip",
-                         buttons = c("copy", "csv", "excel")),
-          rownames = FALSE,
-          class = "cell-border stripe hover"
-        )
+    n_records <- nrow(df)
+    n_participants <- length(unique(df$participant_id))
+    # Cap the embedded table size (the full data is available in the results
+    # TSV). A self-contained HTML otherwise balloons and can kill the render.
+    if (n_records > 5000) df <- df[seq_len(5000), ]
+    datatable(
+      df,
+      caption = paste0(display, " - participants and variants (",
+                       n_participants, " participants; ",
+                       n_records, " variant records",
+                       if (n_records > 5000) "; showing first 5,000 (full table in results)" else "",
+                       ")"),
+      filter = "top",
+      extensions = "Buttons",
+      options = list(pageLength = 10, scrollX = TRUE, dom = "Bfrtip",
+                     buttons = c("copy", "csv", "excel")),
+      rownames = FALSE,
+      class = "cell-border stripe hover"
     )
-  }
+  })
+  htmltools::tagList(pv_widgets)
 } else {
   cat("No per-filter participant tables found.\n")
 }
@@ -943,12 +951,23 @@ if (length(pv_files) > 0) {
 
 # Disease-Related Analysis
 
-Prevalence of the configured `params.disease_related` terms in each filtered participant set, compared with the whole 100kGP programme (enrichment, Fisher's exact test). HPO terms are queried in the phenotype table, SNOMED in `ecds` and ICD-10 in `hes_apc`. Small counts are masked in the plots only.
+```{r disease-related-intro}
+#| include: false
+
+dr_stats_files <- list.files(data_dir, pattern = "disease_related_stats[.]csv$", full.names = TRUE)
+disease_terms_label <- if (length(dr_stats_files) > 0) {
+  st0 <- read_csv(dr_stats_files[1], show_col_types = FALSE)
+  paste0("`", st0$term, "` (", st0$ontology, ")", collapse = ", ")
+} else {
+  ""
+}
+```
+
+Prevalence of the configured disease terms in each filtered participant set, compared with the whole 100kGP programme (enrichment, Fisher's exact test). Terms queried: `r disease_terms_label`.
 
 ```{r disease-related-stats}
 #| echo: false
-
-dr_stats_files <- list.files(data_dir, pattern = "_disease_related_stats\\.csv$", full.names = TRUE)
+#| results: asis
 
 if (length(dr_stats_files) > 0) {
   for (f in dr_stats_files) {
@@ -957,15 +976,18 @@ if (length(dr_stats_files) > 0) {
     st <- read_csv(f, show_col_types = FALSE)
 
     if (nrow(st) > 0) {
-      print(
-        st %>%
-          gt() %>%
-          tab_header(
-            title = paste("Disease-related analysis -", display),
-            subtitle = "Filtered vs whole 100kGP programme"
-          ) %>%
-          fmt_number(columns = where(is.numeric), decimals = 3)
-      )
+      tbl <- st %>%
+        gt() %>%
+        tab_header(
+          title = paste("Disease-related analysis -", display),
+          subtitle = "Filtered vs whole 100kGP programme"
+        ) %>%
+        opt_align_table_header(align = "left") %>%
+        tab_options(table.align = "left") %>%
+        fmt_number(columns = starts_with("n_"), decimals = 0) %>%
+        fmt_number(columns = starts_with("pct_"), decimals = 2) %>%
+        fmt_number(columns = c(odds_ratio, ci_low, ci_high, p_value, fdr), decimals = 3)
+      cat(gt::as_raw_html(tbl), "\n")
     } else {
       cat("No disease terms matched for", display, ".\n")
     }
@@ -980,23 +1002,67 @@ if (length(dr_stats_files) > 0) {
 #| results: asis
 
 dr_plot_files <- list.files(data_dir, pattern = "_disease_related_plots\\.pdf$", full.names = TRUE)
+# Show filter_basic first, the rest as cards in the lightbox gallery
+dr_plot_files <- c(dr_plot_files[grepl("filter_basic", dr_plot_files)],
+                   dr_plot_files[!grepl("filter_basic", dr_plot_files)])
 
 if (length(dr_plot_files) > 0 &&
     requireNamespace("pdftools", quietly = TRUE) &&
     requireNamespace("png", quietly = TRUE)) {
-  for (f in dr_plot_files) {
+  gallery <- "disease-prevalence-gallery"
+  for (idx in seq_along(dr_plot_files)) {
+    f <- dr_plot_files[idx]
     filter_label <- str_extract(basename(f), "filter_[A-Za-z0-9]+")
     tryCatch({
-      img <- pdftools::pdf_render_page(f, page = 1, dpi = 300)
+      img <- pdftools::pdf_render_page(f, page = 1, dpi = 150)
       png_name <- paste0("dr_", filter_label, ".png")
       png::writePNG(img, png_name)
-      cat('\n<div style="text-align:center; margin:20px 0;">\n')
-      cat('<img src="', png_name, '" style="width:90%; height:auto; border:1px solid #dee2e6; border-radius:4px;" />\n', sep = "")
-      cat('</div>\n')
+      if (idx == 1) {
+        cat('![](', png_name, '){group="', gallery, '" width="100%"}\n\n', sep = "")
+      } else {
+        cat('![](', png_name, '){group="', gallery, '" style="display:none;"}\n\n', sep = "")
+      }
     }, error = function(e) cat("Could not render disease-related plot.\n"))
   }
 }
 ```
+
+**_Figure:_** *Prevalence of the configured disease terms in the filtered set versus the whole 100kGP programme. Fisher's exact test results are annotated above each pair of bars (`*` FDR<0.05, `**` FDR<0.01, `***` FDR<0.001). Click the image to cycle through the other filtering strategies.*
+
+```{r disease-related-comorbidity}
+#| echo: false
+#| results: asis
+
+dc_files <- list.files(data_dir, pattern = "_disease_related_comorbidity_.*\\.pdf$", full.names = TRUE)
+# Show filter_basic first, the rest as cards in the lightbox gallery
+dc_files <- c(dc_files[grepl("filter_basic", dc_files)],
+              dc_files[!grepl("filter_basic", dc_files)])
+
+if (length(dc_files) > 0 &&
+    requireNamespace("pdftools", quietly = TRUE) &&
+    requireNamespace("png", quietly = TRUE)) {
+  gallery <- "disease-comorbidity-gallery"
+  for (idx in seq_along(dc_files)) {
+    f <- dc_files[idx]
+    ont_tag <- str_replace(str_extract(basename(f), "comorbidity_[A-Za-z0-9]+\\.pdf$"),
+                           "comorbidity_", "")
+    ont_tag <- str_replace(ont_tag, "\\.pdf$", "")
+    filter_label <- str_extract(basename(f), "filter_[A-Za-z0-9]+")
+    tryCatch({
+      img <- pdftools::pdf_render_page(f, page = 1, dpi = 150)
+      png_name <- paste0("dc_", filter_label, "_", ont_tag, ".png")
+      png::writePNG(img, png_name)
+      if (idx == 1) {
+        cat('![](', png_name, '){group="', gallery, '" width="100%"}\n\n', sep = "")
+      } else {
+        cat('![](', png_name, '){group="', gallery, '" style="display:none;"}\n\n', sep = "")
+      }
+    }, error = function(e) cat("Could not render comorbidity plot.\n"))
+  }
+}
+```
+
+**_Figure:_** *Descriptive prevalence of every disease term present among the filtered participants, per ontology (100% = filtered participants). Counts of 1-4 participants are merged into "Other / small counts masked". Click the image to cycle through the other ontologies and filtering strategies.*
 
 
 ---

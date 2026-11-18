@@ -10,11 +10,13 @@ process queryDiseaseRelated {
         tuple val(gene_name), val(filter_type), path(partID_txt)
         val labkey_main
         val disease_terms
+        val exclude_chapters
 
     output:
         path "${gene_name}_${filter_type}_disease_related_stats.csv", emit: stats_csv
         path "${gene_name}_${filter_type}_disease_related_participants.tsv", emit: participants_tsv
         path "${gene_name}_${filter_type}_disease_related_plots.pdf", emit: plots
+        path "${gene_name}_${filter_type}_disease_related_comorbidity_*.pdf", emit: comorbidity_plots, optional: true
         path "versions.yml", emit: versions
 
     when:
@@ -22,9 +24,10 @@ process queryDiseaseRelated {
 
     script:
     def terms_arg = disease_terms.collect { it instanceof Map ? it.term : it }.join(',')
+    def exclude_arg = exclude_chapters ? exclude_chapters.join(',') : 'Z,U,V,W,X,Y'
     """
     echo "Disease-related analysis: ${gene_name} / ${filter_type} -> ${terms_arg}"
-    queryDiseaseRelated.R ${partID_txt} ${gene_name} ${filter_type} ${labkey_main} "${terms_arg}"
+    queryDiseaseRelated.R ${partID_txt} ${gene_name} ${filter_type} ${labkey_main} "${terms_arg}" "${exclude_arg}"
 
     if [ ! -f "${gene_name}_${filter_type}_disease_related_stats.csv" ]; then
         echo "Error: disease-related stats file was not created"

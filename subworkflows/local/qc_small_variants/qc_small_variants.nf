@@ -91,7 +91,7 @@ workflow QC_SMALL_VARIANTS {
             // out.filtered_clean_rds: tuple(val(gene_name), val(filter_type), path(filtered_rds_file))
 
     // RUN disease-related analysis per filter (100kGP only)
-    queryDiseaseRelated(filterSmallVar.out.partID_txt, params.labkey_main, params.disease_related)
+    queryDiseaseRelated(filterSmallVar.out.partID_txt, params.labkey_main, params.disease_related, params.comorbidity_icd10_exclude_chapters)
             // out.stats_csv, out.participants_tsv, out.plots
 
     // Preparar input para plotFilteredSmallVar 
@@ -223,6 +223,7 @@ workflow QC_SMALL_VARIANTS {
             .flatten()
             .mix(queryDiseaseRelated.out.participants_tsv)
             .mix(queryDiseaseRelated.out.plots)
+            .mix(queryDiseaseRelated.out.comorbidity_plots.flatten())
             .map { file -> tuple(file.baseName.split('_')[0], file) }
             .groupTuple()
 
