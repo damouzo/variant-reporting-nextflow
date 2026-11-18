@@ -14,6 +14,8 @@ process filterSmallVar {
         path "${gene_name}_small_variants_${filter_type}_filtered.tsv", emit: filtered_clean_tsv
         tuple val(gene_name), val(filter_type), path("${gene_name}_small_variants_${filter_type}_filtered.rds"), emit: filtered_clean_rds
         tuple val(gene_name), val(filter_type), path("${gene_name}_small_variants_${filter_type}_filtered_metadata.rds"), emit: filtered_metadata_rds
+        tuple val(gene_name), val(filter_type), path("${gene_name}_small_variants_${filter_type}_participantID.txt"), emit: partID_txt
+        tuple val(gene_name), val(filter_type), path("${gene_name}_small_variants_${filter_type}_participants_variants.tsv"), emit: participants_variants_tsv
         path "versions.yml", emit: versions
 
     script:

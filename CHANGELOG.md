@@ -1,5 +1,10 @@
 # Changelog
 
+## [v1.4.0] - 2026-11-09
+- Per-filter participant outputs: `{gene}_small_variants_{filter}_participantID.txt` and `{gene}_small_variants_{filter}_participants_variants.tsv` (participants x variants with metadata)
+- Disease-related analysis process (`params.disease_related`): queries 100kGP HPO phenotype, ecds (SNOMED) and hes_apc (ICD-10), computes prevalence and enrichment vs the programme, writes stats/plots under `{gene}/{filter}/disease_related/`
+- Integrated both into the existing Quarto report
+
 ## [v1.3.0] - 2025-11-03
 - Automated Quarto reporting system: Per-gene HTML reports with integrated variant statistics, QC plots, and filtering metrics
 - Pipeline execution reports: Timeline visualization, resource usage tracking, DAG generation, and detailed trace files

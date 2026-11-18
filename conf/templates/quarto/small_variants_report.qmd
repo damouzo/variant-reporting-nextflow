@@ -902,6 +902,102 @@ if (length(custom_filter_names) > 0) {
 }
 ```
 
+---
+
+# Participants per Filter
+
+This section lists the participants that survive each filtering strategy, together with the variants each one carries.
+
+```{r participants-per-filter}
+#| echo: false
+
+pv_files <- list.files(data_dir, pattern = "_participants_variants\\.tsv$", full.names = TRUE)
+
+if (length(pv_files) > 0) {
+  for (f in pv_files) {
+    filter_label <- str_extract(basename(f), "filter_[A-Za-z0-9]+")
+    display <- str_to_title(str_replace_all(filter_label, "_", " "))
+    df <- read_tsv(f, show_col_types = FALSE)
+
+    print(
+      df %>%
+        datatable(
+          caption = paste0(display, " - participants and variants (",
+                           length(unique(df$participant_id)), " participants; ",
+                           nrow(df), " variant records)"),
+          filter = "top",
+          extensions = "Buttons",
+          options = list(pageLength = 10, scrollX = TRUE, dom = "Bfrtip",
+                         buttons = c("copy", "csv", "excel")),
+          rownames = FALSE,
+          class = "cell-border stripe hover"
+        )
+    )
+  }
+} else {
+  cat("No per-filter participant tables found.\n")
+}
+```
+
+---
+
+# Disease-Related Analysis
+
+Prevalence of the configured `params.disease_related` terms in each filtered participant set, compared with the whole 100kGP programme (enrichment, Fisher's exact test). HPO terms are queried in the phenotype table, SNOMED in `ecds` and ICD-10 in `hes_apc`. Small counts are masked in the plots only.
+
+```{r disease-related-stats}
+#| echo: false
+
+dr_stats_files <- list.files(data_dir, pattern = "_disease_related_stats\\.csv$", full.names = TRUE)
+
+if (length(dr_stats_files) > 0) {
+  for (f in dr_stats_files) {
+    filter_label <- str_extract(basename(f), "filter_[A-Za-z0-9]+")
+    display <- str_to_title(str_replace_all(filter_label, "_", " "))
+    st <- read_csv(f, show_col_types = FALSE)
+
+    if (nrow(st) > 0) {
+      print(
+        st %>%
+          gt() %>%
+          tab_header(
+            title = paste("Disease-related analysis -", display),
+            subtitle = "Filtered vs whole 100kGP programme"
+          ) %>%
+          fmt_number(columns = where(is.numeric), decimals = 3)
+      )
+    } else {
+      cat("No disease terms matched for", display, ".\n")
+    }
+  }
+} else {
+  cat("No disease-related analysis found (set `params.disease_related` to enable it).\n")
+}
+```
+
+```{r disease-related-plots}
+#| echo: false
+#| results: asis
+
+dr_plot_files <- list.files(data_dir, pattern = "_disease_related_plots\\.pdf$", full.names = TRUE)
+
+if (length(dr_plot_files) > 0 &&
+    requireNamespace("pdftools", quietly = TRUE) &&
+    requireNamespace("png", quietly = TRUE)) {
+  for (f in dr_plot_files) {
+    filter_label <- str_extract(basename(f), "filter_[A-Za-z0-9]+")
+    tryCatch({
+      img <- pdftools::pdf_render_page(f, page = 1, dpi = 300)
+      png_name <- paste0("dr_", filter_label, ".png")
+      png::writePNG(img, png_name)
+      cat('\n<div style="text-align:center; margin:20px 0;">\n')
+      cat('<img src="', png_name, '" style="width:90%; height:auto; border:1px solid #dee2e6; border-radius:4px;" />\n', sep = "")
+      cat('</div>\n')
+    }, error = function(e) cat("Could not render disease-related plot.\n"))
+  }
+}
+```
+
 
 ---
 

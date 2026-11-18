@@ -330,6 +330,34 @@ saveRDS(variant_filtered_table, file = out_file_rds)
 metadata_output_file <- paste0(gene_name, "_small_variants_", filter_type, "_filtered_metadata.rds")
 saveRDS(filtered_metadata, metadata_output_file)
 
+# Participants per filter: simple list + metadata/variants table -----------------
+# Map plate_key -> participant_id (metadata is collapsed by participant_id)
+pk_map <- participant_metadata %>%
+  select(participant_id, plate_key) %>%
+  separate_rows(plate_key, sep = ",\\s*") %>%
+  filter(!is.na(plate_key), plate_key != "")
+
+participants_variants <- variant_filtered_table %>%
+  select(any_of(c("LabelVarPlot", "Existing_variation_annotation", "CHROM_variant",
+                  "POS_variant", "REF_variant", "ALT_variant", "IMPACT_annotation",
+                  "Consequence_annotation", "MAX_AF_annotation", "CLIN_SIG_annotation",
+                  "Het_samples", "Hom_samples", "Hemi_samples"))) %>%
+  pivot_longer(cols = c("Het_samples", "Hom_samples", "Hemi_samples"),
+               names_to = "zygosity", values_to = "samples") %>%
+  mutate(zygosity = sub("_samples$", "", zygosity)) %>%
+  separate_rows(samples, sep = ",\\s*") %>%
+  mutate(plate_key = trimws(samples)) %>%
+  filter(!is.na(plate_key), plate_key != "", plate_key != "NA") %>%
+  left_join(pk_map, by = "plate_key") %>%
+  filter(!is.na(participant_id)) %>%
+  left_join(participant_metadata %>% select(-plate_key), by = "participant_id") %>%
+  relocate(participant_id)
+
+participants_id_file <- paste0(gene_name, "_small_variants_", filter_type, "_participantID.txt")
+participants_var_file <- paste0(gene_name, "_small_variants_", filter_type, "_participants_variants.tsv")
+writeLines(unique(participants_variants$participant_id), participants_id_file)
+write.table(participants_variants, file = participants_var_file, sep = "\t", row.names = FALSE, quote = FALSE)
+
 # Print output messages
 cat("FILTERING COMPLETED - ", filter_type, "\n")
 cat("Gene:", gene_name, "\n")

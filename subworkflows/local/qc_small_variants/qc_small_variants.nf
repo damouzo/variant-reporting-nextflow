@@ -5,6 +5,7 @@ include { extractSmallVarPartID } from '../../../modules/local/R/smallVariants/e
 include { plotQCsmallVar } from '../../../modules/local/R/smallVariants/plotQCsmallVar.nf'
 include { filterSmallVar } from '../../../modules/local/R/smallVariants/filterSmallVar.nf'
 include { plotFilteredSmallVar } from '../../../modules/local/R/smallVariants/plotFilteredSmallVar.nf'
+include { queryDiseaseRelated } from '../../../modules/local/R/diseaseRelated/queryDiseaseRelated.nf'
 include { generateReport } from '../../../modules/local/quarto/generateReport.nf'
 
 
@@ -88,6 +89,10 @@ workflow QC_SMALL_VARIANTS {
             // out.stats_csv: path(filtered_stats_file)
             // out.filtered_clean_tsv: path(filtered_tsv_file)
             // out.filtered_clean_rds: tuple(val(gene_name), val(filter_type), path(filtered_rds_file))
+
+    // RUN disease-related analysis per filter (100kGP only)
+    queryDiseaseRelated(filterSmallVar.out.partID_txt, params.labkey_main, params.disease_related)
+            // out.stats_csv, out.participants_tsv, out.plots
 
     // Preparar input para plotFilteredSmallVar 
     // Combine filtered data with reference files and filtered metadata
@@ -202,6 +207,31 @@ workflow QC_SMALL_VARIANTS {
             def report_type = "small_variants_report"
             tuple(gene_name, report_type, input_files)
         }
+
+    // Add per-filter participant/variant tables to the report inputs
+    participants_var_keyed = filterSmallVar.out.participants_variants_tsv
+        .map { gene_name, _filter_type, file -> tuple(gene_name, file) }
+        .groupTuple()
+
+    report_files_ch = report_files_ch
+        .join(participants_var_keyed)
+        .map { gene_name, report_type, input_files, pvar -> tuple(gene_name, report_type, input_files + pvar) }
+
+    // Add disease-related outputs to the report inputs (only when enabled)
+    if (params.disease_related && params.disease_related.size() > 0 && params.enable_sql_queries) {
+        disease_files_keyed = queryDiseaseRelated.out.stats_csv
+            .flatten()
+            .mix(queryDiseaseRelated.out.participants_tsv)
+            .mix(queryDiseaseRelated.out.plots)
+            .map { file -> tuple(file.baseName.split('_')[0], file) }
+            .groupTuple()
+
+        report_files_ch = report_files_ch
+            .join(disease_files_keyed)
+            .map { gene_name, report_type, input_files, dfiles -> tuple(gene_name, report_type, input_files + dfiles) }
+    }
+
+    report_files_ch = report_files_ch
         .combine(template_file)
         .map { gene_name, report_type, input_files, template ->
             tuple(gene_name, report_type, template, input_files) 
@@ -216,6 +246,7 @@ workflow QC_SMALL_VARIANTS {
     ch_versions = ch_versions.mix(plotQCsmallVar.out.versions)
     ch_versions = ch_versions.mix(filterSmallVar.out.versions)
     ch_versions = ch_versions.mix(plotFilteredSmallVar.out.versions)
+    ch_versions = ch_versions.mix(queryDiseaseRelated.out.versions)
     ch_versions = ch_versions.mix(generateReport.out.versions)
 
     emit:
@@ -225,6 +256,8 @@ workflow QC_SMALL_VARIANTS {
     filtered_clean_rds      = filterSmallVar.out.filtered_clean_rds     // tuple(val(gene_name), val(filter_type), path(rds_file))
     filtered_metadata_rds   = filterSmallVar.out.filtered_metadata_rds  // tuple(val(gene_name), val(filter_type), path(filtered_metadata_rds)) 
     filtered_stats_csv      = filterSmallVar.out.stats_csv              // Filter statistics (all filter types)
+    filtered_partID_txt     = filterSmallVar.out.partID_txt             // Participants per filter .txt
+    filtered_participants   = filterSmallVar.out.participants_variants_tsv // Participants x variants per filter
     partID_txt              = extractSmallVarPartID.out.partID_txt      // participant IDs .txt
     partMet_tsv             = extractSmallVarPartID.out.partMet_tsv     // participant metadata .tsv
     partMet_rds             = extractSmallVarPartID.out.partMet_rds     // participant metadata .rds
